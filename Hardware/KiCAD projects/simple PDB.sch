@@ -1,0 +1,248 @@
+EESchema Schematic File Version 2
+LIBS:power
+LIBS:device
+LIBS:switches
+LIBS:relays
+LIBS:motors
+LIBS:transistors
+LIBS:conn
+LIBS:linear
+LIBS:regul
+LIBS:74xx
+LIBS:cmos4000
+LIBS:adc-dac
+LIBS:memory
+LIBS:xilinx
+LIBS:microcontrollers
+LIBS:dsp
+LIBS:microchip
+LIBS:analog_switches
+LIBS:motorola
+LIBS:texas
+LIBS:intel
+LIBS:audio
+LIBS:interface
+LIBS:digital-audio
+LIBS:philips
+LIBS:display
+LIBS:cypress
+LIBS:siliconi
+LIBS:opto
+LIBS:atmel
+LIBS:contrib
+LIBS:valves
+LIBS:simple PDB-cache
+EELAYER 25 0
+EELAYER END
+$Descr A4 11693 8268
+encoding utf-8
+Sheet 1 1
+Title ""
+Date ""
+Rev ""
+Comp ""
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+$Comp
+L USB_OTG J1
+U 1 1 5A3C0983
+P 3250 2050
+F 0 "J1" H 3050 2500 50  0000 L CNN
+F 1 "USB_OTG" H 3050 2400 50  0000 L CNN
+F 2 "" H 3400 2000 50  0001 C CNN
+F 3 "" H 3400 2000 50  0001 C CNN
+	1    3250 2050
+	1    0    0    -1  
+$EndComp
+$Comp
+L USB_OTG J2
+U 1 1 5A3C0AC4
+P 3250 3100
+F 0 "J2" H 3050 3550 50  0000 L CNN
+F 1 "USB_OTG" H 3050 3450 50  0000 L CNN
+F 2 "" H 3400 3050 50  0001 C CNN
+F 3 "" H 3400 3050 50  0001 C CNN
+	1    3250 3100
+	1    0    0    -1  
+$EndComp
+$Comp
+L USB_A J3
+U 1 1 5A3C0BC4
+P 6050 2050
+F 0 "J3" H 5850 2500 50  0000 L CNN
+F 1 "USB_A" H 5850 2400 50  0000 L CNN
+F 2 "" H 6200 2000 50  0001 C CNN
+F 3 "" H 6200 2000 50  0001 C CNN
+	1    6050 2050
+	1    0    0    -1  
+$EndComp
+$Comp
+L USB_A J4
+U 1 1 5A3C0C19
+P 6050 3100
+F 0 "J4" H 5850 3550 50  0000 L CNN
+F 1 "USB_A" H 5850 3450 50  0000 L CNN
+F 2 "" H 6200 3050 50  0001 C CNN
+F 3 "" H 6200 3050 50  0001 C CNN
+	1    6050 3100
+	1    0    0    -1  
+$EndComp
+NoConn ~ 3550 3100
+NoConn ~ 3550 3200
+NoConn ~ 3550 3300
+NoConn ~ 3550 2050
+NoConn ~ 3550 2150
+NoConn ~ 3550 2250
+NoConn ~ 6350 2050
+NoConn ~ 6350 2150
+NoConn ~ 6350 3100
+NoConn ~ 6350 3200
+Text Notes 3050 3850 0    60   ~ 0
+Switch/Jumper in the center switches the circuit from two separate supplies to being able to use a single shared supply.\n
+$Comp
+L Conn_01x02_Female J5
+U 1 1 5A3C10C0
+P 6850 1400
+F 0 "J5" H 6850 1500 50  0000 C CNN
+F 1 "Conn_01x02_Female" H 6850 1200 50  0000 C CNN
+F 2 "" H 6850 1400 50  0001 C CNN
+F 3 "" H 6850 1400 50  0001 C CNN
+	1    6850 1400
+	1    0    0    -1  
+$EndComp
+$Comp
+L Conn_01x02_Female J6
+U 1 1 5A3C1149
+P 6850 2700
+F 0 "J6" H 6850 2800 50  0000 C CNN
+F 1 "Conn_01x02_Female" H 6850 2500 50  0000 C CNN
+F 2 "" H 6850 2700 50  0001 C CNN
+F 3 "" H 6850 2700 50  0001 C CNN
+	1    6850 2700
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	3150 3500 6650 3500
+Wire Wire Line
+	3150 2450 3250 2450
+Wire Wire Line
+	5950 2450 6650 2450
+Wire Wire Line
+	3550 1850 4700 1850
+Wire Wire Line
+	4700 1850 4700 1400
+Wire Wire Line
+	4700 1400 6650 1400
+Wire Wire Line
+	6450 1400 6450 1850
+Wire Wire Line
+	6450 1850 6350 1850
+Wire Wire Line
+	3550 2900 5650 2900
+Wire Wire Line
+	5650 2900 5650 2700
+Wire Wire Line
+	5650 2700 6650 2700
+Wire Wire Line
+	6450 2700 6450 2900
+Wire Wire Line
+	6450 2900 6350 2900
+Connection ~ 4300 1850
+Connection ~ 4750 2900
+Connection ~ 6450 2700
+Wire Wire Line
+	6650 3500 6650 2800
+Connection ~ 6050 3500
+Connection ~ 6450 1400
+Wire Wire Line
+	6650 2450 6650 1500
+Connection ~ 6050 2450
+Connection ~ 5950 3500
+Connection ~ 3250 3500
+$Comp
+L GNDREF #PWR3
+U 1 1 5A3C15D3
+P 4750 3500
+F 0 "#PWR3" H 4750 3250 50  0001 C CNN
+F 1 "GNDREF" H 4750 3350 50  0000 C CNN
+F 2 "" H 4750 3500 50  0001 C CNN
+F 3 "" H 4750 3500 50  0001 C CNN
+	1    4750 3500
+	1    0    0    -1  
+$EndComp
+$Comp
+L GND #PWR5
+U 1 1 5A3C15F5
+P 6050 2450
+F 0 "#PWR5" H 6050 2200 50  0001 C CNN
+F 1 "GND" H 6050 2300 50  0000 C CNN
+F 2 "" H 6050 2450 50  0001 C CNN
+F 3 "" H 6050 2450 50  0001 C CNN
+	1    6050 2450
+	1    0    0    -1  
+$EndComp
+$Comp
+L GND #PWR1
+U 1 1 5A3C1617
+P 3250 2450
+F 0 "#PWR1" H 3250 2200 50  0001 C CNN
+F 1 "GND" H 3250 2300 50  0000 C CNN
+F 2 "" H 3250 2450 50  0001 C CNN
+F 3 "" H 3250 2450 50  0001 C CNN
+	1    3250 2450
+	1    0    0    -1  
+$EndComp
+$Comp
+L SW_DPST SW1
+U 1 1 5A3C17A9
+P 4700 2350
+F 0 "SW1" H 4700 2550 50  0000 C CNN
+F 1 "SW_DPST" H 4700 2150 50  0000 C CNN
+F 2 "" H 4700 2350 50  0001 C CNN
+F 3 "" H 4700 2350 50  0001 C CNN
+	1    4700 2350
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4300 1850 4300 2250
+Wire Wire Line
+	4300 2250 4500 2250
+Wire Wire Line
+	4900 2250 5150 2250
+Wire Wire Line
+	5150 2250 5150 2900
+Connection ~ 5150 2900
+$Comp
+L GND #PWR2
+U 1 1 5A3C18B6
+P 4400 2500
+F 0 "#PWR2" H 4400 2250 50  0001 C CNN
+F 1 "GND" H 4400 2350 50  0000 C CNN
+F 2 "" H 4400 2500 50  0001 C CNN
+F 3 "" H 4400 2500 50  0001 C CNN
+	1    4400 2500
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4400 2500 4400 2450
+Wire Wire Line
+	4400 2450 4500 2450
+$Comp
+L GNDREF #PWR4
+U 1 1 5A3C1908
+P 5000 2550
+F 0 "#PWR4" H 5000 2300 50  0001 C CNN
+F 1 "GNDREF" H 5000 2400 50  0000 C CNN
+F 2 "" H 5000 2550 50  0001 C CNN
+F 3 "" H 5000 2550 50  0001 C CNN
+	1    5000 2550
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4900 2450 5000 2450
+Wire Wire Line
+	5000 2450 5000 2550
+$EndSCHEMATC
