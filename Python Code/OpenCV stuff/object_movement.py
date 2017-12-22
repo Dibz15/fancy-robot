@@ -59,6 +59,8 @@ counter = 0
 direction = ""
 (avgX, avgY) = (10, 10)
 
+#new comment
+
 
 #if no video supplied, get the webcam
 if not args.get("video", False):
