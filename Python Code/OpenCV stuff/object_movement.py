@@ -86,7 +86,7 @@ while True:
     #find contours in mask and get the center of the objects
     colorMask = colorFinder(frame, avgX, avgY, pts, args)
 
-        #grayScale
+    #grayScale
     gray = cv2.cvtColor(frame.copy(), cv2.COLOR_BGR2GRAY)
     grayFiltered = cv2.bilateralFilter(gray, 11, 17, 17)
     edges = auto_canny(grayFiltered, cv2.getTrackbarPos('Sigma', 'window') / 100)

@@ -10,7 +10,7 @@ def nothing(x):
     pass
 
 #Find area of certain color
-def colorFinder(frame, avgX, avgY, pts, args):
+def colorFinder(frame, avgX, avgY, pts):
 
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -50,7 +50,7 @@ def colorFinder(frame, avgX, avgY, pts, args):
             cv2.circle(frame, center, 5, (0, 0, 255, -1))
             pts.appendleft(center)
 
-    if len(pts) >= args["buffer"] - 1 and pts[-10] is not None:
+    if len(pts) >= pts.maxlen - 1 and pts[-10] is not None:
         avgX = int((pts[-10][0] + pts[0][0] + pts[5][0]) / 3)
         avgY = int((pts[-10][1] + pts[0][1] + pts[5][1]) / 3)
 
