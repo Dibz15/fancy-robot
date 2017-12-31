@@ -1,5 +1,5 @@
 
 
 
-panPin = 17
-tiltPin = 27
+panPin = 27
+tiltPin = 17
