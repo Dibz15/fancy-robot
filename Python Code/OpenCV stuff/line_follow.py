@@ -5,11 +5,17 @@ import cv2
 from skimage import exposure
 from cvlib import *
 from RoboCV import *
+import Constants
 import os
+import RPi.GPIO as GPIO
+
+GPIO.setmode(GPIO.BCM)
 
 rCV = RoboCV()
 rCV.start()
 rCV.setCurrentVisionFunction("LineFollower")
+
+ptControl = PanTiltControl(Constants.panPin, Constants.tiltPin)
 
 while True:
 	# show the frame
