@@ -24,11 +24,27 @@ class MotorController:
         self.pi.set_PWM_frequency(self.rightReverse, self.freq)
 
     def stop(self):
-        print("Motors stopped")
+        #print("Motors stopped")
         self.set_motor_duty(self.leftForward, 0)
         self.set_motor_duty(self.leftReverse, 0)
         self.set_motor_duty(self.rightForward, 0)
         self.set_motor_duty(self.rightReverse, 0)
+
+    def leftStep(self, pwr):
+        self.motorPower(self.rightForward, 0)
+        self.motorPower(self.rightReverse, 0)
+        self.motorPower(self.leftForward, pwr)
+        self.motorPower(self.leftReverse, 0)
+
+    def rightStep(self, pwr):
+        self.motorPower(self.leftForward, 0)
+        self.motorPower(self.leftReverse, 0)
+        self.motorPower(self.rightForward, pwr)
+        self.motorPower(self.rightReverse, 0)
+
+    def motorPower(self, motorPin, pwr):
+        duty = (pwr / 100.0) * 255
+        self.set_motor_duty(motorPin, duty)
 
     def set_motor_duty(self, motorPin, duty):
         duty = max(0, min(255, duty))
@@ -41,6 +57,12 @@ class MotorController:
         self.set_motor_duty(self.leftReverse, 0)
         self.set_motor_duty(self.rightForward, duty)
         self.set_motor_duty(self.rightReverse, 0)
+
+    def forwardPower(self, leftPower, rightPower):
+        self.motorPower(self.leftForward, leftPower)
+        self.motorPower(self.leftReverse, 0)
+        self.motorPower(self.rightForward, rightPower)
+        self.motorPower(self.rightReverse, 0)
 
     def reverse(self, pwr):
         duty = (pwr / 100.0) * 255

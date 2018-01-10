@@ -10,18 +10,20 @@ class PanTiltControl:
 
         return
 
+    def pointDown(self):
+        print("Pointing down")
+        self.setServo(self.tiltPin, 45)
+
     def start(self) :
         print("Starting pan and tilt servos")
         self.pi.set_servo_pulsewidth(self.tiltPin, 1500)
         self.pi.set_servo_pulsewidth(self.panPin, 1500)
         time.sleep(0.5)
-        print("Servos started")
 
     def stop(self) :
         print("Stopping servos")
         self.pi.set_servo_pulsewidth(self.tiltPin, 0)
         self.pi.set_servo_pulsewidth(self.panPin, 0)
-        print("Servos stopped")
 
     def center(self):
         self.pi.set_servo_pulsewidth(self.tiltPin, 1500)

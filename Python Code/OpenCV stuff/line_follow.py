@@ -29,41 +29,114 @@ ptControl.start()
 mController = fooM.MotorController(pi, Constants.leftMotorForward, Constants.leftMotorReverse, Constants.rightMotorForward, Constants.rightMotorReverse)
 mController.start()
 
-'''
+c = 0
+while (c < 70):
+	c += 5
+	ptControl.setServo(Constants.tiltPin, c)
+	time.sleep(0.1)
+
 rCV = RoboCV()
 rCV.start()
 rCV.setCurrentVisionFunction("LineFollower")
 
-while True:
-	# show the frame
-	cv2.imshow("Frame", rCV.getUnmodifiedFrame())
+while rCV.getCurrentVisionFunctionValue("lineImage") is None:
+	time.sleep(0.1)
+	continue
+
+startTime = time.time()
+
+hasLooked = False
+looking = False
+lookingRight = False
+lookingLeft = False
+timeStartedLeft = -1
+timeStartedRight = -1
+
+while time.time() - startTime < 10:
+	# show the frames
+	time.sleep( 1 / 10 )
+
+	#cv2.imshow("Frame", rCV.getUnmodifiedFrame())
+	#cv2.imshow("Line Image", rCV.getCurrentVisionFunctionValue("lineImage"))
 	key = cv2.waitKey(1) & 0xFF
 
 	# if the `q` key was pressed, break from the loop
 	if key == ord("q"):
 		break
-'''
 
-mController.stop()
+	if rCV.getCurrentVisionFunctionValue("missingContours") < 3 and not looking:
+		direction = rCV.getCurrentVisionFunctionValue("direction")
+		print("Direction " + str(direction))
 
-print("Right")
-mController.rightTurn(100)
-time.sleep(3)
+		looking = False
+		hasLooked = False
 
-print("Left")
-mController.leftTurn(100)
-time.sleep(3)
+		maxPwr = 80.0
+		minPwr = 30.0
+		maxDirection = 500.0
 
-print("Reverse")
-mController.reverse(100)
-time.sleep(3)
+		if direction < 0:
+			#right
+			dirRight = abs(direction)
+			capped = min(maxDirection, dirRight)
+			leftPwr = minPwr + (capped / maxDirection * (maxPwr - minPwr))
+			rightPwr = minPwr#minPwr - (capped / maxDirection * (minPwr))
+			mController.forwardPower(leftPwr, rightPwr)
+			print("Right: " + str(leftPwr))
 
-print("Forward")
-mController.forward(100)
-time.sleep(3)
+		elif direction > 0:
+			#left
+			dirLeft = abs(direction)
+			capped = min(maxDirection, dirLeft)
+			rightPwr = minPwr + (capped / maxDirection * (maxPwr - minPwr))
+			leftPwr = minPwr#minPwr - (capped / maxDirection * (minPwr))
+			mController.forwardPower(leftPwr, rightPwr)
+			print("Left: " + str(rightPwr))
+
+		elif direction == 0:
+			print("Forward: " + str(minPwr))
+			mController.forward(minPwr)
+
+	elif looking:
+		#integrate algorithm to look
+		if rCV.getCurrentVisionFunctionValue("missingContours") < 3:
+			looking = False
+			lookingLeft = False
+			lookingRight = False
+			timeStartedLeft = -1
+			timeStartedRight = -1
+
+		if lookingLeft is False and lookingRight is False:
+			lookingLeft = True
+			timeStartedLeft = time.time()
+		elif lookingLeft is True and lookingRight is False:
+			if(time.time() - timeStartedLeft > 0.5):
+				lookingLeft = False
+				timeStartedLeft = -1
+				lookingRight = True
+				timeStartedRight = time.time()
+		elif lookingLeft is False and lookingRight is True:
+			if time.time() - timeStartedRight > 0.6:
+				lookingRight = False
+				timeStartedRight = -1
+				looking = False
+				hasLooked = True
+
+		if lookingLeft:
+			mController.leftTurn(60)
+		elif lookingRight:
+			mController.rightTurn(50)
+		else:
+			mController.stop()
+
+	else:
+		mController.stop()
+		if not hasLooked:
+			looking = True
+		continue
 
 
-#rCV.stop()
+rCV.stop()
 mController.stop()
 ptControl.stop()
 pi.stop()

@@ -1,5 +1,6 @@
 from PiCameraStream import *
 from cvlib import *
+from LineFollowUtils import *
 
 class RoboCV:
     def __init__(self) :
@@ -74,12 +75,70 @@ class VisionFunction:
         return self.values.get(valueName)
 
 class LineFollower(VisionFunction):
-    def __init__(self):
+    def __init__(self, numSlices = 4):
         VisionFunction.__init__(self)
         self.values["name"] = "LineFollower"
+        self.values["lineImage"] = None
+        self.values["missingContours"] = 4
+        self.values["direction"] = 0
+
+        self.minGreen = (30, 140, 60) #Perhaps this will find green?
+        self.maxGreen = (70, 255, 190)
+
+        self.minIRGreen = (53, 76, 20)
+        self.maxIRGreen = (152, 168, 253)
+
+        self.imageParts = []
+
+        self.renderText = True
+
+        for i in range(numSlices):
+            self.imageParts.append(LineImageSlice())
+
+        self.numSlices = numSlices
+        self.direction = 0
         return
 
     def operate( self, rawFrame ) :
+        time.sleep(1 / 15)
+        self.direction = 0
+
+        #Resize our video stream for performance
+        rawResized = imutils.resize(rawFrame, height = 400)
+
+        #Convert it to a binary image based on the color thresholds
+        binarized = binarize(rawResized, self.minGreen, self.maxGreen)
+        binarizedIR = binarize(rawResized, self.minIRGreen, self.maxIRGreen)
+
+        finalBinarized = cv2.bitwise_or(binarized, binarizedIR)
+
+        #Slice up the image and calculate the direction center for each piece
+        sliceImage(finalBinarized, self.imageParts, self.numSlices, self.renderText)
+
+        #Add up the direction sum and check for missing contours
+        numMissing = 0
+        for i in range(self.numSlices):
+            if self.imageParts[i].isLinePresent():
+                modDir = (self.imageParts[i].dir * ( 1 + float(i) / 4.0))
+                self.direction += modDir
+                print("Part [" + str(i) + "]: " + str(modDir))
+                continue
+                #print("Part[" + str(i) + "]: " + str(self.imageParts[i].dir))
+            else:
+                #print("Part[" + str(i) + "]: No line contour")
+                numMissing += 1
+
+        #Piece the final image pack together for display from the pieces
+        finalImage = repackImages(self.imageParts)
+
+        #Render the direction sum
+        if self.renderText:
+            cv2.putText(finalImage, "Dir: " + str(self.direction), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (200,0,200), 2, cv2.LINE_AA)
+
+        #Put our values into the dictionary in case we need something
+        self.values["lineImage"] = finalImage
+        self.values["missingContours"] = numMissing
+        self.values["direction"] = self.direction
 
         return
 
@@ -91,30 +150,39 @@ class HSVFinder(VisionFunction):
         VisionFunction.__init__(self)
         self.values["name"] = "HSVFinder"
         #Create trackbars
-        cv2.namedWindow('window')
-
-        cv2.createTrackbar('H_MAX', 'window', 0, 180, nothing) #H
-        cv2.createTrackbar('H_MIN', 'window', 0, 180, nothing)
-
-        cv2.createTrackbar('S_MAX', 'window', 0, 255, nothing) #S
-        cv2.createTrackbar('S_MIN', 'window', 0, 255, nothing)
-
-        cv2.createTrackbar('V_MAX', 'window', 0, 255, nothing) #V
-        cv2.createTrackbar('V_MIN', 'window', 0, 255, nothing)
+        self.count = 0
 
         self.pts = deque(maxlen=16)
 
         return
 
     def operate( self, rawFrame ) :
+
+        #Create our value sliders
+        if (self.count == 0):
+            cv2.namedWindow('window')
+
+            cv2.createTrackbar('H_MAX', 'window', 0, 180, nothing) #H
+            cv2.createTrackbar('H_MIN', 'window', 0, 180, nothing)
+
+            cv2.createTrackbar('S_MAX', 'window', 0, 255, nothing) #S
+            cv2.createTrackbar('S_MIN', 'window', 0, 255, nothing)
+
+            cv2.createTrackbar('V_MAX', 'window', 0, 255, nothing) #V
+            cv2.createTrackbar('V_MIN', 'window', 0, 255, nothing)
+            time.sleep(1)
+
         time.sleep( 1 / 20 )
         rawResized = imutils.resize(rawFrame, height = 400)
         self.values["resized"] = rawResized
 
+        #Find the color :D
         colorMask = colorFinder(rawResized, 0, 0, self.pts)
 
+        #Let's return the mask in case we need it
         self.values["binarized"] = colorMask
 
+        self.count += 1
         return
 
     def __str__(self):

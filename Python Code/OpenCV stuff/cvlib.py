@@ -9,6 +9,17 @@ import cv2
 def nothing(x):
     pass
 
+def binarize(frame, lowerHSV, upperHSV):
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    #construct mask for the color then perform
+    #dilations and erosions to remove fragment
+    binarized = cv2.inRange(hsv, lowerHSV, upperHSV)
+
+    binarized = cv2.erode(binarized, None, iterations=2)
+    binarized = cv2.dilate(binarized, None, iterations=2)
+
+    return binarized
+
 #Find area of certain color
 def colorFinder(frame, avgX, avgY, pts):
 
@@ -32,8 +43,7 @@ def colorFinder(frame, avgX, avgY, pts):
     mask = cv2.dilate(mask, None, iterations=2)
 
 
-    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE)[-2]
+    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
     center = None
 
     if len(cnts) > 0:
@@ -54,8 +64,7 @@ def colorFinder(frame, avgX, avgY, pts):
         avgX = int((pts[-10][0] + pts[0][0] + pts[5][0]) / 3)
         avgY = int((pts[-10][1] + pts[0][1] + pts[5][1]) / 3)
 
-    cv2.putText(frame, "X:{}, Y:{}".format(avgX, avgY), (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
-        0.65, (0, 0, 255), 3)
+    cv2.putText(frame, "X:{}, Y:{}".format(avgX, avgY), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 255), 3)
 
     return mask
 
