@@ -1,6 +1,7 @@
 from PiCameraStream import *
 from cvlib import *
 from LineFollowUtils import *
+import math
 
 class RoboCV:
     def __init__(self) :
@@ -10,6 +11,7 @@ class RoboCV:
         self.visionFunctions = {}
         self.visionFunctions["LineFollower"] = LineFollower()
         self.visionFunctions["HSVFinder"] = HSVFinder()
+        self.currFrame = None
 
     def __str__ ( self ) :
         return "RoboCV: \n\t" + self.currentVisionFunction.__str__() + "\n\t" + self.cameraStream.__str__()
@@ -32,7 +34,9 @@ class RoboCV:
         #self.cameraStream.update()
         while not self.stopped:
             if self.currentVisionFunction is not None:
-                self.currentVisionFunction.operate(self.cameraStream.read())
+                self.currFrame = self.cameraStream.read()
+                self.currentVisionFunction.operate(self.currFrame)
+
 
         return
 
@@ -41,7 +45,7 @@ class RoboCV:
         return self.cameraStream
 
     def getUnmodifiedFrame(self) :
-        return self.cameraStream.read()
+        return self.currFrame
 
     def getCurrentVisionFunction (self):
         return self.currentVisionFunction
@@ -75,15 +79,16 @@ class VisionFunction:
         return self.values.get(valueName)
 
 class LineFollower(VisionFunction):
-    def __init__(self, numSlices = 4):
+    def __init__(self, numSlices = 5):
         VisionFunction.__init__(self)
         self.values["name"] = "LineFollower"
         self.values["lineImage"] = None
-        self.values["missingContours"] = 4
+        self.values["resizedImage"] = None
+        self.values["missingContours"] = numSlices
         self.values["direction"] = 0
 
-        self.minGreen = (30, 140, 60) #Perhaps this will find green?
-        self.maxGreen = (70, 255, 190)
+        self.minGreen = (47, 140, 60) #Perhaps this will find green?
+        self.maxGreen = (70, 255, 255)
 
         self.minIRGreen = (53, 76, 20)
         self.maxIRGreen = (152, 168, 253)
@@ -97,6 +102,7 @@ class LineFollower(VisionFunction):
 
         self.numSlices = numSlices
         self.direction = 0
+        self.directionVector = [(0, 0), (0, 0)]
         return
 
     def operate( self, rawFrame ) :
@@ -108,37 +114,68 @@ class LineFollower(VisionFunction):
 
         #Convert it to a binary image based on the color thresholds
         binarized = binarize(rawResized, self.minGreen, self.maxGreen)
-        binarizedIR = binarize(rawResized, self.minIRGreen, self.maxIRGreen)
+        #binarizedIR = binarize(rawResized, self.minIRGreen, self.maxIRGreen)
 
-        finalBinarized = cv2.bitwise_or(binarized, binarizedIR)
+        #finalBinarized = cv2.bitwise_or(binarized, binarizedIR)
 
         #Slice up the image and calculate the direction center for each piece
-        sliceImage(finalBinarized, self.imageParts, self.numSlices, self.renderText)
+        sliceImage(binarized, self.imageParts, self.numSlices, self.renderText, rawResized)
 
         #Add up the direction sum and check for missing contours
         numMissing = 0
+        lowestCoord = (0, 10000)
+        highestCoord = (0, 0)
         for i in range(self.numSlices):
             if self.imageParts[i].isLinePresent():
                 modDir = (self.imageParts[i].dir * ( 1 + float(i) / 4.0))
                 self.direction += modDir
-                print("Part [" + str(i) + "]: " + str(modDir))
+                if self.imageParts[i].absoluteY != 0:
+                    if self.imageParts[i].absoluteY < lowestCoord[1]:
+                        lowestCoord = (self.imageParts[i].contourCenterX, self.imageParts[i].absoluteY)
+                    elif self.imageParts[i].absoluteY > highestCoord[1]:
+                        highestCoord = (self.imageParts[i].contourCenterX, self.imageParts[i].absoluteY)
+
+                #print("Part [" + str(i) + "]: " + str(modDir))
                 continue
-                #print("Part[" + str(i) + "]: " + str(self.imageParts[i].dir))
             else:
                 #print("Part[" + str(i) + "]: No line contour")
                 numMissing += 1
 
+        if (self.numSlices - numMissing) == 0:
+            self.direction = 0
+        else:
+            self.direction = self.direction / (self.numSlices - numMissing)
+
+        self.directionVector[0] = lowestCoord
+        self.directionVector[1] = highestCoord
+
+        deltaX = self.directionVector[0][0] - self.directionVector[1][0]
+        deltaY = self.directionVector[1][1] - self.directionVector[0][1]
+
+        if deltaX == 0:
+            angle = 90.0
+        else:
+            angle = math.degrees(math.atan( float(deltaY) / float(deltaX) ))
+            if angle < 0:
+                angle += 180
+
         #Piece the final image pack together for display from the pieces
         finalImage = repackImages(self.imageParts)
+        rawResized = repackRawImages(self.imageParts)
 
         #Render the direction sum
         if self.renderText:
-            cv2.putText(finalImage, "Dir: " + str(self.direction), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (200,0,200), 2, cv2.LINE_AA)
+            cv2.putText(rawResized, "Dir: " + str(self.direction), (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+            cv2.putText(rawResized, "Angle: " + str(angle), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 200), 2, cv2.LINE_AA)
+            cv2.line(rawResized, self.directionVector[0], self.directionVector[1], (255,0,0), 2)
 
         #Put our values into the dictionary in case we need something
         self.values["lineImage"] = finalImage
+        self.values["modified"] = rawResized
         self.values["missingContours"] = numMissing
         self.values["direction"] = self.direction
+        self.values["directionVector"] = self.directionVector
+        self.values["angle"] = angle
 
         return
 

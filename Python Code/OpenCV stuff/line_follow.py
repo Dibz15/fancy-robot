@@ -54,7 +54,7 @@ timeStartedRight = -1
 
 while time.time() - startTime < 10:
 	# show the frames
-	time.sleep( 1 / 10 )
+	time.sleep( 1.0 / 10.0 )
 
 	#cv2.imshow("Frame", rCV.getUnmodifiedFrame())
 	#cv2.imshow("Line Image", rCV.getCurrentVisionFunctionValue("lineImage"))
