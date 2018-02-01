@@ -1,6 +1,7 @@
 from PiCameraStream import *
 from cvlib import *
 from LineFollowUtils import *
+from imutils import *
 import math
 
 class RoboCV:
@@ -106,11 +107,18 @@ class LineFollower(VisionFunction):
         return
 
     def operate( self, rawFrame ) :
-        time.sleep(1 / 15)
+        time.sleep(1.0 / 15.0)
         self.direction = 0
 
         #Resize our video stream for performance
-        rawResized = imutils.resize(rawFrame, height = 400)
+        #rawResized = imutils.resize(rawFrame, height = 400)
+
+        r = 400.0 / rawFrame.shape[1]
+        dim = (400, int(rawFrame.shape[0] * r))
+
+        # perform the actual resizing of the image and show it
+        rawResized = cv2.resize(rawFrame, dim, interpolation = cv2.INTER_AREA)
+
 
         #Convert it to a binary image based on the color thresholds
         binarized = binarize(rawResized, self.minGreen, self.maxGreen)

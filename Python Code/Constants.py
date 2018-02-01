@@ -7,3 +7,6 @@ leftMotorForward = 6
 leftMotorReverse = 5
 rightMotorForward = 20
 rightMotorReverse = 21
+
+leftEncoder = 4
+rightEncoder = 7
