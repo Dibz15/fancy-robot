@@ -12,6 +12,7 @@ class SensorsController:
         self.stopped = True                             #start out stopped
         self.readSerialString = ""                      #Place to read in current string
         self.dataQueue = deque(maxlen = 5)  #Buffer to hold last 5 recieved data packets
+        #Data packets are in this order [Distance, IR Angle, Batt voltage]
         self.dataAverage = [0, 0, 0]
         self.decoder = Decoder(pi, DECODER_CALLBACK)
         self.averageCounter = 0
@@ -55,7 +56,14 @@ class SensorsController:
                 self.dataAverage = [int(totalUS / 5.0), totalIRAngle / 5.0, totalVoltage / 5.0]
                 #print("Arduino data average: " + str(self.dataAverage))
 
+    def getIRAngle(self):
+        return self.dataAverage[1]
 
+    def getUSDistance(self):
+        return self.dataAverage[0]
+
+    def getBatteryVoltage(self):
+        return self.dataAverage[2]
 
     #You gotta call this to stop the thread
     #Otherwise it may not stop when you go to close the whole program :D

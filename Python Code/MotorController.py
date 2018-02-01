@@ -5,6 +5,7 @@ from threading import Thread
 
 class MotorController:
 
+
     def __init__(self, pi, leftForward, leftReverse, rightForward, rightReverse, freq = 50, decoder = None):
         self.pi = pi
         self.leftForward = leftForward
@@ -23,6 +24,16 @@ class MotorController:
             self.decoder.setCallbackFunction(self.decoderCallback)
 
         self.stopped = True
+
+        #============Motor Controller Function Labels==================
+        self.FORWARD_SPEED = 0
+        self.FORWARD_STEP  = 1
+        self.REVERSE_SPEED = 2
+        self.REVERSE_STEP  = 3
+        self.TURN_ANGLE    = 4
+        self.RIGHT_TURN    = 5
+        self.LEFT_TURN     = 6
+
 
     def start(self):
         print("Motors started")
@@ -50,7 +61,7 @@ class MotorController:
 
     def decoderCallback(self, gpioPin):
         #Do something?
-        print("Callback")
+        #print("Callback")
         pass
 
     def leftStep(self, pwr):
@@ -110,3 +121,7 @@ class MotorController:
 
     def getCurrentDutyCycle(self, motorPin):
         return self.duty[motorPin]
+
+    def motorFunction(function, *parameters):
+        #if function ==
+        pass

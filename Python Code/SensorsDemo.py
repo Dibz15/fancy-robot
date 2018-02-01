@@ -1,13 +1,21 @@
 from SensorsController import *
 from MotorController import *
 import pigpio
+from SpeechController import *
+
 
 pi = pigpio.pi()
 
+speech = SpeechController()
+speech.start()
 
+speech.speak("Program starting.")
+
+speech.speak("Booting sensors.")
 sensors = SensorsController(pi)
 sensors.start()
 
+speech.speak("Preparing motors.")
 motors = MotorController(pi,
                         Constants.leftMotorForward,
                         Constants.leftMotorReverse,
@@ -16,8 +24,11 @@ motors = MotorController(pi,
                         decoder = sensors.getDecoder())
 motors.start()
 
+for i in range(3):
+    speech.sayVoltage(sensors.getBatteryVoltage())
+    time.sleep(2)
 
-time.sleep(10)
-
+speech.speak("Shutdown sequence commencing.")
 sensors.stop()
 motors.stop()
+speech.stop()

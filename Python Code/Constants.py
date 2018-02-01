@@ -1,12 +1,12 @@
 
 
 panPin = 27
-tiltPin = 17
+tiltPin = 22
 
 leftMotorForward = 6
 leftMotorReverse = 5
 rightMotorForward = 20
 rightMotorReverse = 21
 
-leftEncoder = 4
-rightEncoder = 7
+leftEncoder = 2
+rightEncoder = 3
