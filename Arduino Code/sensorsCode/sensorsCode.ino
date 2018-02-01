@@ -19,6 +19,7 @@ int irAngle;
 
 void findDistance();
 void readIR();
+long readVcc();
 void readBatteryVoltage();
 void printData();
 
@@ -42,6 +43,8 @@ void setup() {
   pinMode(batteryPin, INPUT); //Battery voltage read pin
   
   Serial.begin(9600); // Starts the serial communication
+
+
 }
 
 
@@ -74,11 +77,44 @@ void readIR() {
   
 }
 
+long readVcc() {
+  // Read 1.1V reference against AVcc
+  // set the reference to Vcc and the measurement to the internal 1.1V reference
+  #if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+    ADMUX = _BV(REFS0) | _BV(MUX4) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+  #elif defined (__AVR_ATtiny24__) || defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny84__)
+    ADMUX = _BV(MUX5) | _BV(MUX0);
+  #elif defined (__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__)
+    ADMUX = _BV(MUX3) | _BV(MUX2);
+  #else
+    ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+  #endif  
+
+  delay(2); // Wait for Vref to settle
+  ADCSRA |= _BV(ADSC); // Start conversion
+  while (bit_is_set(ADCSRA,ADSC)); // measuring
+
+  uint8_t low  = ADCL; // must read ADCL first - it then locks ADCH  
+  uint8_t high = ADCH; // unlocks both
+
+  long result = (high << 8) | low;
+
+  result = 1125300L / result; // Calculate Vcc (in mV); 1125300 = 1.1*1023*1000
+  return result; // Vcc in millivolts
+}
+
 void readBatteryVoltage() {
 
+  long Vcc = readVcc();
+  //Serial.print("Vcc: ");
+  //Serial.println(Vcc);
+  //temp
+  //Vcc = 4950.0;
+
   //Read battery voltage here
-  int raw = analogRead(batteryPin);
-  batteryVoltage = (float)raw / 1024.0 * 5.0;
+  //analogReference(INTERNAL);
+  unsigned int raw = analogRead(batteryPin);
+  batteryVoltage = ((float) raw / 1023.0 * (Vcc / 1000.0));
 
 }
 
@@ -94,7 +130,7 @@ void findDistance() {
   digitalWrite(trigPin, LOW);
 
   // Reads the echoPin, returns the sound wave travel time in microseconds
-  duration = pulseIn(echoPin, HIGH);
+  duration = pulseIn(echoPin, HIGH, 100000);
   
   // Calculating the distance
   distance = duration / 58.0;
