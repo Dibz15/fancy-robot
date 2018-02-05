@@ -6,6 +6,9 @@ import time
 from threading import Thread
 
 class SensorsController:
+    #__init__ is called whenever our class is instantiated.
+    #ie. sensors = SensorsController() is actually calling this __init__ class, implicitly
+    #parameters with default arguments are specified optionally
     def __init__(self, pi, ARDUINO_PORT = "/dev/ttyACM0", ARDUINO_BAUD = 9600, DECODER_CALLBACK = None):
         self.ARDUINO_PORT = ARDUINO_PORT                #Port for Arduino UNO/Leonardo is often /dev/ttyACM0 on RPi
         self.ARDUINO_BAUD = ARDUINO_BAUD                #Baud rate we set to 9600
@@ -36,25 +39,29 @@ class SensorsController:
             splitString = self.readSerialString.split(',')              #Parse the data from between the commas
 
             #Add current parsed data into queue. Order is: Distance, IRAngle, BatteryVoltage
-            if splitString[0] != '' and splitString[1] != '' and splitString[2] != '':
-                self.dataQueue.appendleft([int(splitString[0]), int(splitString[1]), float(splitString[2])])
-                #print("Arduino Data: " + str(self.dataQueue[0]))
-                self.averageCounter += 1
 
-            if (len(self.dataQueue) >= 5) and self.averageCounter >= 3:
-                self.averageCounter = 0
-                totalUS = 0.0
-                totalIRAngle = 0.0
-                totalVoltage = 0.0
+            try:
+                if splitString[0] != '' and splitString[1] != '' and splitString[2] != '':
+                    self.dataQueue.appendleft([int(splitString[0]), int(splitString[1]), float(splitString[2])])
+                    #print("Arduino Data: " + str(self.dataQueue[0]))
+                    self.averageCounter += 1
 
-                for i in range(len(self.dataQueue)):
-                    d = self.dataQueue[i]
-                    totalUS += d[0]
-                    totalIRAngle += d[1]
-                    totalVoltage += d[2]
+                if (len(self.dataQueue) >= 5) and self.averageCounter >= 3:
+                    self.averageCounter = 0
+                    totalUS = 0.0
+                    totalIRAngle = 0.0
+                    totalVoltage = 0.0
 
-                self.dataAverage = [int(totalUS / 5.0), totalIRAngle / 5.0, totalVoltage / 5.0]
-                #print("Arduino data average: " + str(self.dataAverage))
+                    for i in range(len(self.dataQueue)):
+                        d = self.dataQueue[i]
+                        totalUS += d[0]
+                        totalIRAngle += d[1]
+                        totalVoltage += d[2]
+
+                    self.dataAverage = [int(totalUS / 5.0), totalIRAngle / 5.0, totalVoltage / 5.0]
+                    #print("Arduino data average: " + str(self.dataAverage))
+            except:
+                pass
 
     def getIRAngle(self):
         return self.dataAverage[1]
@@ -97,8 +104,8 @@ class Decoder:
         self.rightEncoderPin = rightEncoderPin
         self.callbackFunction = callbackFunction
 
-        self.leftEncoderPin = 4
-        self.rightEncoderPin = 7
+        self.leftEncoderPin = int(Constants.leftEncoder)
+        self.rightEncoderPin = int(Constants.rightEncoder)
 
         self.pi.set_mode(self.leftEncoderPin, pigpio.INPUT)
         self.pi.set_mode(self.rightEncoderPin, pigpio.INPUT)
@@ -106,12 +113,30 @@ class Decoder:
         self.pi.set_pull_up_down(self.leftEncoderPin, pigpio.PUD_OFF)
         self.pi.set_pull_up_down(self.rightEncoderPin, pigpio.PUD_OFF)
 
-        self.deltas = deque(5 * [0, 0], 5)          #Deque to show the deltas for the last 5 ticks (could be for averaging)
+        self.deltaStore = 15
+
+        self.Ldeltas = deque(maxlen = self.deltaStore)          #Deque to show the deltas for the last 5 ticks (could be for averaging)
+        self.Rdeltas = deque(maxlen = self.deltaStore)
+        self.Ldeltas.appendleft(0)
+        self.Rdeltas.appendleft(0)
+
         self.counter = [0, 0]                        #Counter to use for number of ticks in a certain time
         self.lastTickTime = [time.time() * 1000, time.time() * 1000]       #Time in milliseconds
 
         self.LEFT = 0
         self.RIGHT = 1
+
+
+    def getDeltaAverages(self):
+        dSums = [0, 0]
+        for i in range(len(self.Rdeltas) - 1):
+            dSums[self.LEFT] += self.Ldeltas[i]
+            dSums[self.RIGHT] += self.Rdeltas[i]
+
+        dSums[self.LEFT] /= len(self.Ldeltas)
+        dSums[self.RIGHT] /= len(self.Rdeltas)
+
+        return dSums
 
 
     def start(self):
@@ -158,13 +183,15 @@ class Decoder:
             if gpio == self.leftEncoderPin:
                 self.counter[self.LEFT] += 1
                 self.callbackFunction(int(gpio))
-                self.deltas.appendleft( [ (time.time() * 1000) - self.lastTickTime[self.LEFT] , (time.time() * 1000) - self.lastTickTime[self.RIGHT] ] )
+                self.Ldeltas.appendleft( (time.time() * 1000) - self.lastTickTime[self.LEFT] )
                 self.lastTickTime[self.LEFT] = time.time() * 1000
             elif gpio == self.rightEncoderPin:
                 self.counter[self.RIGHT] += 1
                 self.callbackFunction(int(gpio))
-                self.deltas.appendleft( [ (time.time() * 1000) - self.lastTickTime[self.LEFT] , (time.time() * 1000) - self.lastTickTime[self.RIGHT] ] )
+                self.Rdeltas.appendleft((time.time() * 1000) - self.lastTickTime[self.RIGHT])
                 self.lastTickTime[self.RIGHT] = time.time() * 1000
+
+            #print("D: (" + str(self.Ldeltas[0]) + ", " + str(self.Rdeltas[0]) + ")")
 
     def stop(self):
         """

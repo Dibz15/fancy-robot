@@ -2,9 +2,9 @@ import pigpio
 import time
 from collections import deque
 from threading import Thread
+import math
 
 class MotorController:
-
 
     def __init__(self, pi, leftForward, leftReverse, rightForward, rightReverse, freq = 50, decoder = None):
         self.pi = pi
@@ -34,6 +34,26 @@ class MotorController:
         self.RIGHT_TURN    = 5
         self.LEFT_TURN     = 6
 
+        #Wheel contants?
+        self.LEFT = 0
+        self.RIGHT = 1
+
+        #Note, since the right wheel is bigger, it will have a greater linear speed
+        #at the same rotational speed.
+        self.RIGHT_DIAM_MM = 67.0 #mm
+        self.LEFT_DIAM_MM = 66.0 #mm
+
+        self.RIGHT_RADIUS_MM = self.RIGHT_DIAM_MM / 2.0
+        self.LEFT_RADIUS_MM = self.LEFT_DIAM_MM / 2.0
+
+        self.RIGHT_CIRC_CM = self._mmToCm(float(self.RIGHT_DIAM_MM)) * math.pi  #21.0486708 cm
+        self.LEFT_CIRC_CM = self._mmToCm(float(self.LEFT_DIAM_MM)) * math.pi   #20.7345115 cm
+
+        self.TICKS_PER_REV = 20.0
+
+        self.SINGLE_TICK_ANGLE = 360.0 / self.TICKS_PER_REV #18 degrees turn per tick
+        self.SINGLE_TICK_ANGLE_RAD = math.radians(self.SINGLE_TICK_ANGLE)
+
 
     def start(self):
         print("Motors started")
@@ -60,6 +80,7 @@ class MotorController:
         self.currentOperation(*args)
 
     def decoderCallback(self, gpioPin):
+
         #Do something?
         #print("Callback")
         pass
@@ -125,3 +146,27 @@ class MotorController:
     def motorFunction(function, *parameters):
         #if function ==
         pass
+
+    '''
+    Takes a tick delta (say 0.01 s) and converts it to angular velocity (in rads/sec), using
+    our known tick angle delta of 18 degrees
+    '''
+    def _deltaToAngularVelocity(self, delta, numTicks = 1):
+        singleTickDelta = float(delta / numTicks)
+        w = self.SINGLE_TICK_ANGLE_RAD / singleTickDelta
+        return w
+
+    '''
+    Takes a tick delta (like 0.01s), and a radius (7 cm), and converts
+    it to linear velocity in {radius_unit}/s
+    '''
+    def _deltaToLinearVelocity(self, delta, radius, numTicks = 1):
+        w = self._deltaToAngularVelocity(delta, numTicks)
+        v = w * radius
+        return v
+
+    def _mmToCm(self, mm):
+        return mm / 10.0
+
+    def _msToS(self, ms):
+        return ms / 1000.0

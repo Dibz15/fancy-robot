@@ -1,23 +1,32 @@
 from MotorController import *
 import Constants
-import RPi.GPIO as GPIO
 import pigpio
 import time
-
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BCM)
+from SensorsController import *
 
 pi = pigpio.pi()
 
-controller = MotorController(pi, Constants.leftMotorForward, Constants.leftMotorReverse, Constants.rightMotorForward, Constants.rightMotorReverse)
+sensors = SensorsController(pi)
+sensors.start()
 
-controller.start()
+motors = MotorController(pi,
+                        Constants.leftMotorForward,
+                        Constants.leftMotorReverse,
+                        Constants.rightMotorForward,
+                        Constants.rightMotorReverse,
+                        decoder = sensors.getDecoder())
+
+motors.start()
+motors.stop()
 
 print("Forward 100%")
-controller.forward(100)
-time.sleep(12)
+motors.forward(50)
 
 
-controller.stop()
+for i in range(100):
+    print("DAvg: " + str(sensors.getDecoder().getDeltaAverages()))
+    time.sleep(0.05)
+
+sensors.stop()
+motors.stop()
 pi.stop()
-GPIO.cleanup()
