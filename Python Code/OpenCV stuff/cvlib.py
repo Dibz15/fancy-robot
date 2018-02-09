@@ -9,6 +9,21 @@ import cv2
 def nothing(x):
     pass
 
+'''
+****************************************************
+*Function: Binarize
+*Description: Recieves an image frame (numpy matrix)
+*   and two HSV threshold values triplets(upper and lower)
+*   and creates a binary image. White is within the range,
+*   black is not.
+*Parameters:
+*   frame - numpy matrix image
+*   lowerHSV - 3-value tuple of HSV values for lower limit
+*   upperHSV - Same as lowerHSV, but the upper limit
+*Returns:
+*   modified black and white threshold frame (numpy matrix)
+****************************************************
+'''
 def binarize(frame, lowerHSV, upperHSV):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     #construct mask for the color then perform
@@ -21,6 +36,21 @@ def binarize(frame, lowerHSV, upperHSV):
     return binarized
 
 #Find area of certain color
+'''
+****************************************************
+*Function: colorFinder
+*Description: Recieves an image frame (numpy matrix)
+*  and finds the area of the frame with the largest amount
+*  of the specified HSV values (given by the pop-up value sliders)
+*Parameters:
+*   frame - numpy matrix image
+*   avgX - average x value (placeholder instead of returning the value)
+*   avgY - average y value
+*   pts - deque of points for location memory
+*Returns:
+*   modified black and white threshold frame (numpy matrix) of the given image
+****************************************************
+'''
 def colorFinder(frame, avgX, avgY, pts):
 
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -33,15 +63,11 @@ def colorFinder(frame, avgX, avgY, pts):
             cv2.getTrackbarPos('S_MAX', 'window'),
             cv2.getTrackbarPos('V_MAX', 'window'))
 
-
     #construct mask for the color then perform
     #dilations and erosions to remove fragment
     mask = cv2.inRange(hsv, lower, upper)
-    #mask = cv2.inRange(hsv, yellowLower, yellowUpper)
-    #mask = cv2.inRange(hsv, orangeLower, orangeUpper)
     mask = cv2.erode(mask, None, iterations=2)
     mask = cv2.dilate(mask, None, iterations=2)
-
 
     cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
     center = None
@@ -68,8 +94,19 @@ def colorFinder(frame, avgX, avgY, pts):
 
     return mask
 
-
 #Image edge detection
+'''
+****************************************************
+*Function: colorFinder
+*Description: Recieves an grayscale numpy matrix, and returns the
+*   edge-detected modified frame
+*Parameters:
+*   gray - grayscale frame
+*   sigma - constant for calculating edge-detection
+*Returns:
+*   modified edge-detected image
+****************************************************
+'''
 def auto_canny(gray, sigma=0.33):
     #compute median of single channel pixel intensities
     v = np.median(gray)
@@ -81,6 +118,18 @@ def auto_canny(gray, sigma=0.33):
     #return the edged image
     return edged
 
+
+'''
+****************************************************
+*Function: get_rect
+*Description: recieves a numpy matrix image, and finds the largest quadrilateral
+*   shape in the image, returning the cv2 contour
+*Parameters:
+*   image - image to search in
+*Returns:
+*   None, or the contour of the rectange found
+****************************************************
+'''
 #Find the largest rectangle contour in the image
 def get_rect(image):
     cnts = cv2.findContours(image.copy(), cv2.RETR_LIST,
@@ -105,6 +154,22 @@ def get_rect(image):
 
     return None
 
+'''
+****************************************************
+*Function: warp_perspective
+*Description: Recieves an image with a quadrilateral contour in it,
+*   and returns a rectangle (ie. it warps the given quadrilateral into
+*   a rectangle).
+*Parameters:
+*   image - numpy matrix image with quad
+*   screenCnt - contour that describes the quad in the image
+*   ratio - image size ratio
+*   finalWidth - specified final width of image
+*   finalHeight - specified final height of image
+*Returns:
+*   Image of perspective-corrected rectangle
+****************************************************
+'''
 #Use matrix math to convert a warped rectangle to one that is seen straight
 def warp_perspective(image, screenCnt, ratio, finalWidth = -1, finalHeight = -1):
     if screenCnt is not None:
@@ -148,7 +213,6 @@ def warp_perspective(image, screenCnt, ratio, finalWidth = -1, finalHeight = -1)
         else:
             maxWidth = finalWidth
             maxHeight = finalHeight
-
 
         #construct destination points used to map the screen to a top-down view
         dst = np.array([

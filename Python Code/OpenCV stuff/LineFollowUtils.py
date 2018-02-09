@@ -1,9 +1,15 @@
-
+'''
+*	File: LineFollowUtils.py
+*	Description:	Utility functions/classes for line following. Provided class
+*       is LineImageSlice.
+*   Code inspired by (and some functions copied from) https://github.com/CRM-UAM/VisionRace
+*	Author(s):		Austin Dibble
+*	Date Created:	12/27/17
+'''
 import numpy as np
 import cv2
 from collections import deque
 
-#Code inspired by (and some functions copied from) https://github.com/CRM-UAM/VisionRace
 
 def centerOfContour(moments):
     if moments["m00"] == 0:
