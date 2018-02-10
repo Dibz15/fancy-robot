@@ -1,0 +1,53 @@
+(export (version D)
+  (design
+    (source "F:/austi/Documents/GitHub/fancy-robot/Hardware/KiCAD projects/RPi Shield/RPiShield.sch")
+    (date "2/5/2018 5:02:33 PM")
+    (tool "Eeschema 4.0.7")
+    (sheet (number 1) (name /) (tstamps /)
+      (title_block
+        (title)
+        (company)
+        (rev)
+        (date)
+        (source RPiShield.sch)
+        (comment (number 1) (value ""))
+        (comment (number 2) (value ""))
+        (comment (number 3) (value ""))
+        (comment (number 4) (value "")))))
+  (components
+    (comp (ref J1)
+      (value USB_OTG)
+      (libsource (lib conn) (part USB_OTG))
+      (sheetpath (names /) (tstamps /))
+      (tstamp 5A78FE7E)))
+  (libparts
+    (libpart (lib conn) (part USB_OTG)
+      (description "USB mini/micro connector")
+      (footprints
+        (fp USB*))
+      (fields
+        (field (name Reference) J)
+        (field (name Value) USB_OTG))
+      (pins
+        (pin (num 1) (name VBUS) (type power_in))
+        (pin (num 2) (name D-) (type passive))
+        (pin (num 3) (name D+) (type passive))
+        (pin (num 4) (name ID) (type passive))
+        (pin (num 5) (name GND) (type power_in))
+        (pin (num 6) (name Shield) (type passive)))))
+  (libraries
+    (library (logical conn)
+      (uri "C:\\Program Files\\KiCad\\share\\kicad\\library\\conn.lib")))
+  (nets
+    (net (code 1) (name "Net-(J1-Pad1)")
+      (node (ref J1) (pin 1)))
+    (net (code 2) (name "Net-(J1-Pad2)")
+      (node (ref J1) (pin 2)))
+    (net (code 3) (name "Net-(J1-Pad3)")
+      (node (ref J1) (pin 3)))
+    (net (code 4) (name "Net-(J1-Pad4)")
+      (node (ref J1) (pin 4)))
+    (net (code 5) (name "Net-(J1-Pad5)")
+      (node (ref J1) (pin 5)))
+    (net (code 6) (name "Net-(J1-Pad6)")
+      (node (ref J1) (pin 6)))))
