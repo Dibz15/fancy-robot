@@ -1,4 +1,4 @@
-update=2/5/2018 4:32:08 PM
+update=2/15/2018 10:14:55 AM
 version=1
 last_client=kicad
 [pcbnew]
@@ -27,7 +27,7 @@ NetIExt=net
 version=1
 [eeschema]
 version=1
-LibDir=../hat-design-master;C:/Program Files/KiCad/share/kicad/library/Library
+LibDir=../ECE34xCompLib
 [eeschema/libraries]
 LibName1=power
 LibName2=device
@@ -61,5 +61,3 @@ LibName29=opto
 LibName30=atmel
 LibName31=contrib
 LibName32=valves
-LibName33=hat-design-cache
-LibName34=C:/Program Files/KiCad/share/kicad/library/Library/ECE34xCompLib/ECE34xCompLib

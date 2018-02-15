@@ -1,0 +1,188 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP 7805
+D Linear Regulator +5V
+K POWER REGUL
+F regulator\lm78xx.pdf
+$ENDCMP
+#
+$CMP 78L05
+D Linear Regulator +5V
+K POWER REGUL
+F regulator\lm78lxx.pdf
+$ENDCMP
+#
+$CMP ATMEGA128-16AU
+D TQFP64, 128k Flash, 4k SRAM, 4k EEPROM, JTAG
+K AVR 8bit Microcontroller MegaAVR
+F http://www.atmel.com/Images/doc2467.pdf
+$ENDCMP
+#
+$CMP ATMEGA168-20AU
+D TQFP32, 16k Flash, 512B SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR
+F http://www.atmel.com/Images/doc2545.pdf
+$ENDCMP
+#
+$CMP ATMEGA48-20AU
+D TQFP32, 4k Flash, 256B SRAM, 512B EEPROM
+K AVR 8bit Microcontroller MegaAVR
+F http://www.atmel.com/Images/doc2545.pdf
+$ENDCMP
+#
+$CMP ATMEGA88-20AU
+D TQFP32, 8k Flash, 512B SRAM, 1k EEPROM
+K AVR 8bit Microcontroller MegaAVR
+F http://www.atmel.com/Images/doc2545.pdf
+$ENDCMP
+#
+$CMP BARREL_JACK
+D DC Barrel Jack
+K DC power barrel jack connector
+$ENDCMP
+#
+$CMP C
+D Unpolarized capacitor
+K cap capacitor
+$ENDCMP
+#
+$CMP CONN_01X02
+D Connector, single row, 01x02, pin header
+K connector
+$ENDCMP
+#
+$CMP CONN_01X03
+D Connector, single row, 01x03, pin header
+K connector
+$ENDCMP
+#
+$CMP CONN_01X04
+D Connector, single row, 01x04, pin header
+K connector
+$ENDCMP
+#
+$CMP CONN_01X06
+D Connector, single row, 01x06, pin header
+K connector
+$ENDCMP
+#
+$CMP CONN_01X08
+D Connector, single row, 01x08, pin header
+K connector
+$ENDCMP
+#
+$CMP CONN_01X10
+D Connector, single row, 01x10, pin header
+K connector
+$ENDCMP
+#
+$CMP CONN_01X20
+D Connector, single row, 01x20, pin header
+K connector
+$ENDCMP
+#
+$CMP CONN_02X03
+D Connector, double row, 02x03, pin header
+K connector
+$ENDCMP
+#
+$CMP CONN_02X04
+D Connector, double row, 02x04, pin header
+K connector
+$ENDCMP
+#
+$CMP CONN_02X05
+D Connector, double row, 02x05, pin header
+K connector
+$ENDCMP
+#
+$CMP CP1
+D Polarised capacitor
+K cap capacitor
+$ENDCMP
+#
+$CMP Crystal_12
+D Two pin crystal
+K quartz ceramic resonator oscillator
+$ENDCMP
+#
+$CMP Crystal_14
+D Two pin crystal
+K quartz ceramic resonator oscillator
+$ENDCMP
+#
+$CMP Crystal_GND23
+D Four pin crystal (GND on pins 2 and 3), e.g. in SMD package
+K quartz ceramic resonator oscillator
+$ENDCMP
+#
+$CMP Crystal_GND24
+D Four pin crystal (GND on pins 2 and 4), e.g. in SMD package
+K quartz ceramic resonator oscillator
+$ENDCMP
+#
+$CMP D
+D Diode
+K diode
+$ENDCMP
+#
+$CMP D_Schottky
+D Schottky diode
+K diode Schottky
+$ENDCMP
+#
+$CMP D_Zener
+D Zener Diode
+K diode
+F https://en.wikipedia.org/wiki/Zener_diode
+$ENDCMP
+#
+$CMP Fuse
+D Fuse, generic
+K Fuse
+$ENDCMP
+#
+$CMP L
+D Inductor
+K inductor choke coil reactor magnetic
+$ENDCMP
+#
+$CMP LD1117S33TR
+D 800mA Fixed Low Drop Positive Voltage Regulator, Fixed Output 3.3V, SOT223
+K REGULATOR LDO 3.3V
+F http://www.st.com/st-web-ui/static/active/en/resource/technical/document/datasheet/CD00000544.pdf
+$ENDCMP
+#
+$CMP LED
+D LED generic
+K led diode
+$ENDCMP
+#
+$CMP LM7805
+D Linear Regulator +5V
+K POWER REGUL
+F regulator\lm78xx.pdf
+$ENDCMP
+#
+$CMP LM7812
+D Linear Regulator +12V
+K POWER REGUL
+F regulator\lm78xx.pdf
+$ENDCMP
+#
+$CMP Res
+D Resistor
+K Resistor
+$ENDCMP
+#
+$CMP TEST
+D Testpoint, connection for test equipment
+K tp testpoint
+$ENDCMP
+#
+$CMP USB_OTG
+D USB mini/micro connector
+K connector USB
+$ENDCMP
+#
+#End Doc Library
