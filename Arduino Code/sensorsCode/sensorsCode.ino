@@ -17,6 +17,7 @@ int distance;
 float batteryVoltage;
 int irAngle;
 
+//Function headers
 void findDistance();
 void readIR();
 long readVcc();
@@ -41,23 +42,24 @@ void setup() {
   pinMode(ir4, INPUT);
 
   pinMode(batteryPin, INPUT); //Battery voltage read pin
-  
+
   Serial.begin(9600); // Starts the serial communication
 
 
 }
 
-
+//Continuous looping forever!
 void loop() {
 
   distanceAction.check();
   irAction.check();
   batteryAction.check();
   printAction.check();
-  
+
 }
 
-
+//Print out the serial information.
+//This prints in the format distance,irAngle,batteryVoltage\n
 void printData() {
 
   //Print data here
@@ -67,16 +69,19 @@ void printData() {
   Serial.print(",");
   Serial.print(batteryVoltage);
   Serial.println();
-  
+
 }
 
-
+//Read and calibrate infrared sensors
 void readIR() {
 
   //IR sensor data here
-  
+
 }
 
+//This function reads our Vcc voltage, and returns it in millivolts.
+//This is accomplished by reading the internal reference voltage agains AVcc,
+//then calibrating Vcc based on the inaccuracy  of that read.
 long readVcc() {
   // Read 1.1V reference against AVcc
   // set the reference to Vcc and the measurement to the internal 1.1V reference
@@ -88,13 +93,13 @@ long readVcc() {
     ADMUX = _BV(MUX3) | _BV(MUX2);
   #else
     ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
-  #endif  
+  #endif
 
   delay(2); // Wait for Vref to settle
   ADCSRA |= _BV(ADSC); // Start conversion
   while (bit_is_set(ADCSRA,ADSC)); // measuring
 
-  uint8_t low  = ADCL; // must read ADCL first - it then locks ADCH  
+  uint8_t low  = ADCL; // must read ADCL first - it then locks ADCH
   uint8_t high = ADCH; // unlocks both
 
   long result = (high << 8) | low;
@@ -118,21 +123,25 @@ void readBatteryVoltage() {
 
 }
 
-
+//This function finds the approximate distance of the object
+//using the ultrasonic range finder.
+//
 void findDistance() {
   // Clears the trigPin
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
-  
+
   // Sets the trigPin on HIGH state for 10 micro seconds
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
 
   // Reads the echoPin, returns the sound wave travel time in microseconds
-  duration = pulseIn(echoPin, HIGH, 100000);
-  
+  //We put a timeout of 80ms, so it doesn't stall our processor too long.
+  duration = pulseIn(echoPin, HIGH, 80000);
+
   // Calculating the distance
+  //This equation comes from the datasheet of the rangefinder.
   distance = duration / 58.0;
 }
 
@@ -150,7 +159,7 @@ void printDouble( double val, byte precision){
    byte padding = precision -1;
    while(precision--)
       mult *=10;
-      
+
    if(val >= 0)
      frac = (val - int(val)) * mult;
    else

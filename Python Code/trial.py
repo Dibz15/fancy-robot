@@ -10,11 +10,5 @@ speech = SpeechController(voiceType = 1 , speechRate = 150)
 
 speech.start()
 
-
-sensors = SensorsController(pi)
-motor = MotorController(pi, Constants.leftMotorForward, Constants.leftMotorReverse, Constants.rightMotorForward, Constants.rightMotorReverse, decoder = sensors.getDecoder())
-
-motor.stop()
-speech.speak("I have stopped motor functions, Mister wizard")
-speech.speak("Your welcome")
+speech.speak("I am returning to base station")
 speech.stop()

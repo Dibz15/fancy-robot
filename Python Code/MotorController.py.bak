@@ -1,0 +1,704 @@
+'''
+*	File: MotorController.py
+*	Description:  This module holds the MotorController class, which assists
+*       in controlling our motors through PWM. A separate thread is devoted to
+*       a PID loop which controls motor speed and angle through feedback.
+*	Author(s):		Austin Dibble
+*	Date Created:	12/28/17
+'''
+import pigpio
+import time
+from collections import deque
+import Constants
+from threading import Thread
+import math
+from PID import *
+
+'''
+*	Class: MotorController.py
+*	Description:	MotorController is a threaded class which takes care of
+*       our motor control as an abstraction interface. Internally, it uses PID
+*       controls and callbacks to provide a simple interface for movement.
+*	Author(s):		Austin Dibble
+*	Date Created:	12/28/18
+'''
+class MotorController:
+
+    def __init__(self, pi, leftForward = Constants.leftMotorForward, leftReverse = Constants.leftMotorReverse, rightForward = Constants.rightMotorForward, rightReverse = Constants.rightMotorReverse, freq = 50, decoder = None):
+        self.pi = pi
+        self.leftForward = int(leftForward)
+        self.leftReverse = int(leftReverse)
+        self.rightForward = int(rightForward)
+        self.rightReverse = int(rightReverse)
+        self.duty = {}
+        self.duty[self.leftForward] = 0
+        self.duty[self.leftReverse] = 0
+        self.duty[self.rightForward] = 0
+        self.duty[self.rightReverse] = 0
+        self.freq = 50
+
+        self.currentOperation = self.halt               #Initialize the controller with the motors stopped
+        self.currentOperationArgs = []                  #Current parameters for our operation?
+
+        self.decoder = decoder                          #Decoder for callback on decoder ticks
+
+        #Set decoder callback, if a decoder is provided
+        if self.decoder is not None:
+            self.decoder.setCallbackFunction(self.decoderCallback)
+
+        self.stopped = True
+        self.manualControl = False
+
+        self.cycleCount = 0
+        self.motorFunctionCompleted = False
+
+        self.desiredDistanceTicks = (0, 0)
+
+
+        #============Motor Controller Function Labels==================
+        self.FORWARD       = 0
+        self.REVERSE       = 1
+        self.TURN_ANGLE    = 2
+        self.RIGHT_TURN    = 3
+        self.LEFT_TURN     = 4
+        self.HALT          = 5
+
+        #Wheel contants?
+        self.LEFT = 0
+        self.RIGHT = 1
+
+        #Note, since the right wheel is bigger, it will have a greater linear speed
+        #at the same rotational speed.
+        self.RIGHT_DIAM_MM = 67.0 #mm
+        self.LEFT_DIAM_MM = 66.0 #mm
+
+        self.RIGHT_RADIUS_MM = self.RIGHT_DIAM_MM / 2.0
+        self.LEFT_RADIUS_MM = self.LEFT_DIAM_MM / 2.0
+
+        self.RIGHT_CIRC_CM = self._mmToCm(float(self.RIGHT_DIAM_MM)) * math.pi  #21.0486708 cm
+        self.LEFT_CIRC_CM = self._mmToCm(float(self.LEFT_DIAM_MM)) * math.pi   #20.7345115 cm
+
+        self.TICKS_PER_REV = 20.0   #Encoder ticks per revolution
+
+        self.SINGLE_TICK_ANGLE = 360.0 / self.TICKS_PER_REV #18 degrees turn per tick
+        self.SINGLE_TICK_ANGLE_RAD = math.radians(self.SINGLE_TICK_ANGLE)   #Angle in radians, for physics calcs
+
+        #Width of the chassis in cm.
+        self.CHASSIS_WIDTH_CM = 14.9 #diameter of wheel->wheel distance
+
+    '''
+    ****************************************************
+    *Function: start
+    *Description: Starts everything up for motors, including the PID thread
+    *Parameters:
+    *   self -
+    *Returns:
+    *   nothing
+    ****************************************************
+    '''
+    def start(self):
+        print("Motors started")
+        self.pi.set_mode(self.leftForward, pigpio.OUTPUT)           #Set leftForward motor pin to output
+        self.pi.set_mode(self.leftReverse, pigpio.OUTPUT)           #Set leftReverse motor pin to output
+        self.pi.set_mode(self.rightForward, pigpio.OUTPUT)          #Set rightForward motor pin to output
+        self.pi.set_mode(self.rightReverse, pigpio.OUTPUT)          #Set rightReverse motor pin to output
+        self.pi.set_PWM_frequency(self.leftForward, self.freq)      #Set PWM frequencies (default 50Hz)
+        self.pi.set_PWM_frequency(self.leftReverse, self.freq)
+        self.pi.set_PWM_frequency(self.rightForward, self.freq)
+        self.pi.set_PWM_frequency(self.rightReverse, self.freq)
+
+        self.stopped = False
+        self.manualControl = False
+
+        #Start thread for updating current operation
+        Thread(target = self.update, args = ()).start()
+
+    #Stop everything!
+    def stop(self):
+        print("Stopping motors")
+        self.stopped = True
+        time.sleep(1)
+        self._set_motor_duty(self.leftForward, 0)       #Turn off all motors
+        self._set_motor_duty(self.leftReverse, 0)       #Turn off all motors
+        self._set_motor_duty(self.rightForward, 0)
+        self._set_motor_duty(self.rightReverse, 0)
+
+    def update(self):
+        while not self.stopped:
+            time.sleep(1.0 / 15.0)
+            args = self.currentOperationArgs
+
+            #print(str(self.manualControl))
+
+            if not self.manualControl:
+                self.currentOperation(*args)
+
+            self.cycleCount += 1
+
+    def decoderCallback(self, gpioPin):
+
+        #Do something?
+        #print("Callback")
+        pass
+
+    def leftStep(self, pwr):
+        self._motorPower(self.rightForward, 0)
+        self._motorPower(self.rightReverse, 0)
+        self._motorPower(self.leftForward, pwr)
+        self._motorPower(self.leftReverse, 0)
+
+    def rightStep(self, pwr):
+        self._motorPower(self.leftForward, 0)
+        self._motorPower(self.leftReverse, 0)
+        self._motorPower(self.rightForward, pwr)
+        self._motorPower(self.rightReverse, 0)
+
+    def _motorPower(self, motorPin, pwr):
+        duty = pwr * 2.55
+        self._set_motor_duty(motorPin, duty)
+
+    def _set_motor_duty(self, motorPin, duty):
+        duty = max(0, min(255, duty))
+        self.duty[motorPin] = duty
+    	self.pi.set_PWM_dutycycle(motorPin, duty)
+
+    def forward(self, Lpwr, Rpwr):
+        #print("Motors forward")
+        #Lduty = (Lpwr / 100.0) * 255
+        Lduty = Lpwr * 2.55
+        #Rduty = (Rpwr / 100.0) * 255
+        Rduty = Rpwr * 2.55
+        self._set_motor_duty(self.leftForward, Lduty)
+        self._set_motor_duty(self.leftReverse, 0)
+        self._set_motor_duty(self.rightForward, Rduty)
+        self._set_motor_duty(self.rightReverse, 0)
+
+    '''
+    ****************************************************
+    *Function: _forwardPower
+    *Description:
+    *   Forward motion, with different duty for each motor
+    *Parameters:
+    *   self -
+    *   pwr - percent power, as a decimal. Ex: 50% would be 50
+    *Returns:
+    *   nothing
+    ****************************************************
+    '''
+    def _forwardPower(self, leftPower, rightPower):
+        self._motorPower(self.leftForward, leftPower)
+        self._motorPower(self.leftReverse, 0)
+        self._motorPower(self.rightForward, rightPower)
+        self._motorPower(self.rightReverse, 0)
+
+    '''
+    ****************************************************
+    *Function: reverse
+    *Description:
+    *   Puts motors into reverse
+    *Parameters:
+    *   self -
+    *   pwr - percent power, as a decimal. Ex: 50% would be 50
+    *Returns:
+    *   nothing
+    ****************************************************
+    '''
+    def reverse(self, Lpwr, Rpwr):
+        #Lduty = (Lpwr / 100.0) * 255
+        Lduty = (Lpwr * 2.55)
+        #Rduty = (Rpwr / 100.0) * 255
+        Rduty = (Rpwr * 2.55)
+        self._set_motor_duty(self.leftForward, 0)
+        self._set_motor_duty(self.leftReverse, Lduty)
+        self._set_motor_duty(self.rightForward, 0)
+        self._set_motor_duty(self.rightReverse, Rduty)
+
+    '''
+    ****************************************************
+    *Function: rightTurn
+    *Description: Right turn with some amount of "power"
+    * Power here is simply the percentage of the duty cycle.
+    *Parameters:
+    *   self -
+    *   pwr - percent power, as a decimal. Ex: 50% would be 50
+    *Returns:
+    *   nothing
+    ****************************************************
+    '''
+    def rightTurn(self, Lpwr, Rpwr):
+        #Lduty = (Lpwr / 100.0) * 255
+        Lduty = (Lpwr * 2.55)
+        #Rduty = (Rpwr / 100.0) * 255
+        Rduty = (Rpwr * 2.55)
+        self._set_motor_duty(self.leftForward, Lduty)
+        self._set_motor_duty(self.leftReverse, 0)
+        self._set_motor_duty(self.rightForward, 0)
+        self._set_motor_duty(self.rightReverse, Rduty)
+
+    '''
+    ****************************************************
+    *Function: leftTurn
+    *Description: Left turn with some amount of "power"
+    * Power here is simply the percentage of the duty cycle.
+    *Parameters:
+    *   self -
+    *   pwr - percent power, as a decimal. Ex: 50% would be 50
+    *Returns:
+    *   nothing
+    ****************************************************
+    '''
+    def leftTurn(self, Lpwr, Rpwr):
+        Lduty = (Lpwr * 2.55)
+        Rduty = (Rpwr * 2.55)
+        self._set_motor_duty(self.leftForward, 0)
+        self._set_motor_duty(self.leftReverse, Lduty)
+        self._set_motor_duty(self.rightForward, Rduty)
+        self._set_motor_duty(self.rightReverse, 0)
+
+
+    def takeControl(self):
+        print("Obtaining manual control of motors...")
+        self.manualControl = True
+        return
+
+    def releaseControl(self):
+        print("Releasing control of motors...")
+        self.manualControl = False
+        return
+
+
+    '''
+    ****************************************************
+    *Function: turnAngle
+    *Description: Turn the robot some angle amount
+    *Parameters:
+    *   self -
+    *   angle - the angle (in degrees) to turn
+    *   wheel - if given, the specific wheel to turn. This is for a one-wheel turn.
+    *   desiredSpeed - if given, a PID loop will attempt to keep a certain speed.
+    *Returns:
+    *   nothing
+    ****************************************************
+    '''
+    def _turnAngle(self, angle, wheel = None, desiredSpeed = -1):
+        #if 0, is given, we don't need to do anything
+        if (angle == 0) or self.motorFunctionCompleted:
+            print("Exiting return: " + str(self.motorFunctionCompleted))
+            return
+
+        #Some initial stuff
+        if self.cycleCount < 2:
+            oneWheel = False
+            if wheel is not None:
+                oneWheel = True
+            self.desiredAngleTicks = self._chassisAngleToTicks(angle, oneWheel)
+
+        print("turn angle")
+
+        pwr = 50 #temporary
+
+        #Whether or not we have a speed to keep
+        if desiredSpeed != -1:
+            #TODO PID speed control
+            pass
+        else:
+            #If this is a 2-wheel turn
+            if wheel is None:
+                #If both wheels haven't reach their mark
+                if (self.decoder.getCounter()[0] < self.desiredAngleTicks[0]) and (self.decoder.getCounter()[1] < self.desiredAngleTicks[1]):
+                    if angle > 0:
+                        self.leftTurn(pwr, pwr)
+                    elif angle < 0:
+                        self.rightTurn(pwr, pwr)
+
+                #If the right wheel is still going
+                elif (self.decoder.getCounter()[0] >= self.desiredAngleTicks[0]) and (self.decoder.getCounter()[1] < self.desiredAngleTicks[1]):
+                    if angle > 0:
+                        self.leftTurn(0, pwr)
+                    elif angle < 0:
+                        self.rightTurn(0, pwr)
+
+                #If the left wheel is still going
+                elif (self.decoder.getCounter()[0] < self.desiredAngleTicks[0]) and (self.decoder.getCounter()[1] >= self.desiredAngleTicks[1]):
+                    if angle > 0:
+                        self.leftTurn(pwr, 0)
+                    elif angle < 0:
+                        self.rightTurn(pwr, 0)
+
+                #If both motors have reached their ticks
+                elif (self.decoder.getCounter()[0] >= self.desiredAngleTicks[0]) and (self.decoder.getCounter()[1] >= self.desiredAngleTicks[1]):
+                    #Stop the motors
+                    self.halt()
+                    #Let everybody know we're done
+                    self.motorFunctionCompleted = True
+
+            #If this is a 1-wheel turn
+            else:
+                wheel = int(wheel)
+
+                #If we're using the left wheel
+                if wheel == self.LEFT:
+                    #If we haven't yet reached our mark
+                    if (self.decoder.getCounter()[0] < self.desiredAngleTicks[0]):
+                        if angle > 0:
+                            self.leftTurn(pwr, 0)
+                        elif angle < 0:
+                            self.rightTurn(pwr, 0)
+                    #If we have reached our mark
+                    elif (self.decoder.getCounter()[0] >= self.desiredAngleTicks[0]):
+                        #Stop the motors
+                        self.halt()
+                        #We're done now
+                        self.motorFunctionCompleted = True
+
+                #If we're using the right wheel
+                elif wheel == self.RIGHT:
+                    #If we haven't reached our mark
+                    if (self.decoder.getCounter()[1] < self.desiredAngleTicks[1]):
+                        if angle > 0:
+                            self.leftTurn(0, pwr)
+                        elif angle < 0:
+                            self.rightTurn(0, pwr)
+                    #If we have reached it
+                    elif (self.decoder.getCounter()[1] >= self.desiredAngleTicks[1]):
+                        #Stop the motors
+                        self.halt()
+                        #Signal we're done
+                        self.motorFunctionCompleted = True
+
+        return
+
+    #distance in cm
+    def _forwardFunction(self, speed = -1, distance = -1):
+        if speed == -1 and distance == -1:
+            self.motorFunctionCompleted = True
+            self.halt()
+            return
+
+        targetPwr = 60
+
+        if distance != -1:
+
+            if self.cycleCount < 2:
+                #New PID control. our setpoint is 0, because we want 0 difference betweent the pins
+                self.dPID = PID(initSetpoint = 0.0, Kp = 1, Ki = 0.0, Kd = 0.15)
+                angleL = self._angleFromArc( distance, self._mmToCm(self.LEFT_RADIUS_MM) )
+                angleR = self._angleFromArc( distance, self._mmToCm(self.RIGHT_RADIUS_MM) )
+                self.desiredDistanceTicks = ( self._wheelAngleToTicks(angleL), self._wheelAngleToTicks(angleR) )
+                self.forward(targetPwr, targetPwr)
+
+            #print("DesiredTicks: " + str(self.desiredDistanceTicks) + ", ticks: " + str(self.decoder.getCounter()))
+
+            #Get the current number of ticks for each wheel
+            Lticks = self.decoder.getCounter()[0]
+            Rticks = self.decoder.getCounter()[1]
+
+            #If we haven't yet reached our tick target
+            if (Lticks < self.desiredDistanceTicks[0]) and (Rticks < self.desiredDistanceTicks[1]):
+                #Get the highest tick amount so far
+                highestTick = max(Lticks, Rticks)
+
+                #Lowest tick amount so far
+                lowestTick = min(Lticks, Rticks)
+
+                #Difference between our highest and lowest
+                tickDelta = highestTick - lowestTick
+
+                #Update our PID loop with the current error
+                self.dPID.update(tickDelta)
+
+                #Get the new power adjustment
+                deltaPwr = abs(self.dPID.getOutput())
+
+                rCurrentPwr = self.dutyToPower(self.getCurrentDutyCycle(self.rightForward))
+                lCurrentPwr = self.dutyToPower(self.getCurrentDutyCycle(self.leftForward))
+
+                if (Lticks < Rticks):
+                    if (lCurrentPwr + deltaPwr >= targetPwr):
+                        rTargetPwr = rCurrentPwr - deltaPwr
+                        lTargetPwr = lCurrentPwr
+                    elif (lCurrentPwr + deltaPwr < targetPwr):
+                        rTargetPwr = rCurrentPwr
+                        lTargetPwr = lCurrentPwr + deltaPwr
+
+                elif (Lticks > Rticks):
+                    if (rCurrentPwr + deltaPwr >= targetPwr):
+                        lTargetPwr = lCurrentPwr - deltaPwr
+                        rTargetPwr = rCurrentPwr
+                    elif (rCurrentPwr + deltaPwr < targetPwr):
+                        lTargetPwr = lCurrentPwr
+                        rTargetPwr = rCurrentPwr + deltaPwr
+                elif (Lticks == Rticks):
+                    lTargetPwr = lCurrentPwr
+                    rTargetPwr = rCurrentPwr
+
+                #print("RCP:" + str(rCurrentPwr) + ",RTP:" + str(rTargetPwr) + ",LCP:" + str(lCurrentPwr) + ",LTP:" + str(lTargetPwr) + ",dP:" + str(deltaPwr))
+                self.forward(lTargetPwr, rTargetPwr)
+
+                #If the right wheel is still going
+            elif (Lticks >= self.desiredDistanceTicks[0]) and (Rticks < self.desiredDistanceTicks[1]):
+                    self.forward(0, targetPwr)
+
+                #If the left wheel is still going
+            elif (Lticks < self.desiredDistanceTicks[0]) and (Rticks >= self.desiredDistanceTicks[1]):
+                    self.forward(targetPwr, 0)
+
+            #If both motors have reached their ticks
+            elif (Lticks >= self.desiredDistanceTicks[0]) and (Rticks >= self.desiredDistanceTicks[1]):
+                #Stop the motors
+                self.halt()
+                #Let everybody know we're done
+                self.motorFunctionCompleted = True
+                print("Reached the mark")
+
+            #TODO PID loop control
+
+        if speed != -1:
+            #TODO PID Control
+            if self.cycleCount == 0:
+                pass
+            pass
+
+        return
+
+
+    def _reverseFunction(self, speed = -1, distance = -1):
+        if speed == -1 and distance == -1:
+            self.motorFunctionCompleted = True
+            self.halt()
+            return
+
+        pwr = 60 #temp
+
+        if distance != -1:
+            if self.cycleCount == 0:
+                angleL = self._angleFromArc( distance, self._mmToCm(self.LEFT_RADIUS_MM) )
+                angleR = self._angleFromArc( distance, self._mmToCm(self.RIGHT_RADIUS_MM) )
+                self.desiredDistanceTicks = ( self._wheelAngleToTicks(angleL), self._wheelAngleToTicks(angleR) )
+
+            print("DesiredTicks: " + str(self.desiredDistanceTicks) + ", ticks: " + str(self.decoder.getCounter()))
+
+            if (self.decoder.getCounter()[0] < self.desiredDistanceTicks[0]) and (self.decoder.getCounter()[1] < self.desiredDistanceTicks[1]):
+                self.reverse(pwr, pwr)
+
+                #If the right wheel is still going
+            elif (self.decoder.getCounter()[0] >= self.desiredDistanceTicks[0]) and (self.decoder.getCounter()[1] < self.desiredDistanceTicks[1]):
+                    self.reverse(0, pwr)
+
+                #If the left wheel is still going
+            elif (self.decoder.getCounter()[0] < self.desiredDistanceTicks[0]) and (self.decoder.getCounter()[1] >= self.desiredDistanceTicks[1]):
+                    self.reverse(pwr, 0)
+
+            #If both motors have reached their ticks
+            elif (self.decoder.getCounter()[0] >= self.desiredDistanceTicks[0]) and (self.decoder.getCounter()[1] >= self.desiredDistanceTicks[1]):
+                #Stop the motors
+                self.halt()
+                #Let everybody know we're done
+
+                self.motorFunctionCompleted = True
+
+            #TODO PID loop control
+
+        if speed != -1:
+            #TODO PID Control
+            pass
+
+
+        return
+
+    '''
+    ****************************************************
+    *Function: motorFunction
+    *Description: This operates on the currently set motor
+    *   function pointer, with the given array of parameters.
+    *Parameters:
+    *   function - function constant, used to set the current
+    *       function
+    *   *parameters - variable parameter list of parameters, since
+    *       these may vary depending on the function
+    *Returns:
+    *   nothing
+    ****************************************************
+    '''
+    def motorFunction(self, function, *parameters):
+
+
+        self.currentOperationArgs = parameters
+        if function == self.FORWARD:
+            self.motorFunctionCompleted = False
+            print("Setting motor function FORWARD")
+
+            if self.decoder is None:
+                print("Cannot execute without decoder instance.")
+                self.motorFunctionCompleted = True
+                return
+
+            self.cycleCount = 0
+            self.decoder.resetCounters()
+            self.decoder.clearDeltas()
+
+            self.currentOperation = self._forwardFunction
+
+        elif function == self.HALT:
+            print("Setting motor function to HALT")
+            self.currentOperation = self.halt
+            self.motorFunctionCompleted = True
+
+        elif function == self.REVERSE:
+            self.motorFunctionCompleted = False
+            print("Setting motor function to REVERSE")
+
+            if self.decoder is None:
+                print("Cannot execute without decoder instance.")
+                self.motorFunctionCompleted = True
+                return
+
+            self.cycleCount = 0
+            self.decoder.resetCounters()
+            self.decoder.clearDeltas()
+
+            self.currentOperation = self._reverseFunction
+
+        elif function == self.TURN_ANGLE:
+            self.motorFunctionCompleted = False
+
+            if self.decoder is None:
+                print("Cannot execute without decoder instance.")
+                self.motorFunctionCompleted = True
+                return
+
+            self.cycleCount = 0
+            self.decoder.resetCounters()
+            self.decoder.clearDeltas()
+
+            print("Setting motor function to TURN_ANGLE")
+            self.currentOperation = self._turnAngle
+
+
+    #Halt the motors (same as stop, but stop we use at the end of main)
+    def halt(self):
+        self._set_motor_duty(self.leftForward, 0)       #Turn off all motors
+        self._set_motor_duty(self.leftReverse, 0)       #Turn off all motors
+        self._set_motor_duty(self.rightForward, 0)
+        self._set_motor_duty(self.rightReverse, 0)
+        self.motorFunctionCompleted = True
+        time.sleep(0.2)
+
+
+    def getCurrentDutyCycle(self, motorPin):
+        return self.duty[motorPin]
+
+    def waitOnAction(self):
+        while not self.motorFunctionCompleted:
+            time.sleep(0.2)
+            pass
+
+        return
+
+    def dutyToPower(self, duty):
+        return (duty / 255.0) * 100.0
+
+    '''
+    Given the desired turn angle (in degrees) of the entire chassis, find the
+    number of ticks required for each wheel to turn the chassis to that angle.
+
+    Formula is as follows:
+    Chassis turn arc length (S_c) = chassis_radius * angle
+    Wheel radius = r_w
+    Wheel turn arc length (S_w) = ~S_c
+    Wheel turn angle (theta_w) = S_w / r_w
+    Wheel ticks (ticks_w) = theta_w / SINGLE_TICK_ANGLE_RAD
+
+    Returns a tuple for left and right wheel ticks
+
+    Note: if oneWheel parameter is set as True, this is calculated for a one-wheeled turn.
+    A tuple is still passed, but the info for only one wheel should be used.
+
+    '''
+    def _chassisAngleToTicks(self, angle, oneWheel = False):
+        angle = float(angle)                                #make sure it's a float
+        angle = math.radians(angle)                         #Convert angle to radians for physics
+
+        if oneWheel:
+            radius = self._cmToMm(self.CHASSIS_WIDTH_CM)         #Turn radius in mm
+        else:
+            radius = self._cmToMm(self.CHASSIS_WIDTH_CM) / 2.0
+
+        chassisArcLength = self._arcLengthFromAngle(radius, angle)               #Chassis arc length in mm
+        LwheelAngle = self._angleFromArc( chassisArcLength, self.LEFT_RADIUS_MM) #Left wheel angle delta, in radians
+        RwheelAngle = self._angleFromArc( chassisArcLength, self.RIGHT_RADIUS_MM)
+
+        LwheelTicks = self._wheelAngleToTicks(LwheelAngle)
+        RwheelTicks = self._wheelAngleToTicks(RwheelAngle)
+
+        return (LwheelTicks, RwheelTicks)
+
+
+    '''
+    Given the wheel angle (in radians), this returns the approximate required
+    number of ticks (rounded) to achieve that angle
+    '''
+    def _wheelAngleToTicks(self, angle):
+        return round(abs(angle) / self.SINGLE_TICK_ANGLE_RAD, 0)
+
+
+    '''
+    ****************
+    Gives the theta (angle in rads) given by an arc length and the radius of the arc.
+    ****************
+    '''
+    def _angleFromArc(self, arcLen, rad):
+        return arcLen / rad
+
+    '''*********************************************************************************
+    Given a radius and some angle (in radians), this finds the corresponding arc lenght.
+     |--
+     |      \
+    r|\         \  arc length
+     |    \        \
+     |theta  \       \
+     |_________\______|
+
+    ********************************************************************************
+    '''
+    def _arcLengthFromAngle(self, rad, theta):
+        return rad * abs(theta)
+
+
+    '''
+    ************************************************************************************
+    Takes a tick delta (say 0.01 s) and converts it to angular velocity (in rads/sec), using
+    our known tick angle delta of 18 degrees
+    ***********************************************************************************
+    '''
+    def _deltaToAngularVelocity(self, delta, numTicks = 1):
+        singleTickDelta = float(delta / numTicks)
+        w = self.SINGLE_TICK_ANGLE_RAD / singleTickDelta
+        return w
+
+    '''
+    Takes a tick delta (like 0.01s), and a radius (7 cm), and converts
+    it to linear velocity in {radius_unit}/s
+    '''
+    def _deltaToLinearVelocity(self, delta, radius, numTicks = 1):
+        w = self._deltaToAngularVelocity(delta, numTicks)
+        v = w * radius
+        return v
+
+    '''
+    Convert cm to mm
+    '''
+    def _cmToMm(self, cm):
+        return cm * 10.0
+
+    '''
+    Convert mm to cm
+    '''
+    def _mmToCm(self, mm):
+        return mm / 10.0
+
+    '''
+    Convert ms to S
+    '''
+    def _msToS(self, ms):
+        return ms / 1000.0

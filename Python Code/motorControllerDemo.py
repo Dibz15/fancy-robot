@@ -15,32 +15,31 @@ from SensorsController import *
 pi = pigpio.pi()
 
 #Start the sensors controller (serial, decoders, etc.)
-sensors = SensorsController(pi)
-sensors.start()
+#sensors = SensorsController(pi)
+#sensors.start()
 
 #Start the motor controller
-motors = MotorController(pi,
-                        Constants.leftMotorForward,         #These are the pin assignments
-                        Constants.leftMotorReverse,
-                        Constants.rightMotorForward,
-                        Constants.rightMotorReverse,
-                        decoder = sensors.getDecoder())
+motors = MotorController(pi)
 
 #Start motor driver stuff
 motors.start()
 #Halt motors, to start
-motors.halt()
+time.sleep(1)
 
-#Spin motors forward at 50% power
-print("Forward 50%")
-motors.forward(50)
+motors.takeControl()
 
-#Go for 5 seconds, getting the average deltas for the decoders
-for i in range(100):
-    print("DAvg: " + str(sensors.getDecoder().getDeltaAverages()))
-    time.sleep(0.05)
+while not motors.manualControl:
+    time.sleep(0.2)
+
+#motors.forward(100, 100)
+
+time.sleep(1)
+
+motors.releaseControl()
+
+time.sleep(1)
 
 #Stop everything, clean up resources
-sensors.stop()
+#sensors.stop()
 motors.stop()
 pi.stop()

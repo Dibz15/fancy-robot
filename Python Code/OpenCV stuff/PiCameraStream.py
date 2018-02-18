@@ -1,12 +1,27 @@
+'''
+*	File: PiCameraStream.py
+*	Description:  This module interfaces with the RPi camera API
+*	Author(s):		Austin Dibble
+*	Date Created:	12/22/17
+'''
+
 from picamera.array import PiRGBArray
 from picamera import PiCamera
 from threading import Thread
 import time
 
+'''
+*	Class: PiCameraStream
+*	Description:  This class provides an interface to get camera data
+*	Author(s):		Austin Dibble
+*	Date Created:	12/22/17
+'''
+
 class PiCameraStream :
     def __init__(self, w = 640, h = 480, fps = 20, vflip = True, hflip = True) :
         self.width = w
         self.height = h
+
         #initialize pi camera
         self.camera = PiCamera()
         self.camera.resolution = (self.width, self.height)
@@ -28,7 +43,9 @@ class PiCameraStream :
         print("PiCameraStream: Starting Camera")
         self.stopped = False
 
+        #Start our frame retrieval thread
         Thread(target = self.update, args=()).start()
+
         #Wait for frames
         while self.frame is None: time.sleep(0.01)
 
@@ -72,5 +89,6 @@ class PiCameraStream :
     def getStream ( self ) :
         return self.stream
 
+    #Read the most recent frame
     def read ( self ) :
         return self.frame

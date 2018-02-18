@@ -44,8 +44,11 @@ class SpeechController:
     #Resource cleaning, we want to remove the temp file
     def stop(self):
         if self.voiceType == 1:
-            os.remove("voice.wav")
-
+            try:
+                os.remove("voice.wav")
+            except:
+                #In case we didn't make a file in the first place
+                pass
 
     def speak(self, speechString):
         print("Saying \"" + speechString + "\"")

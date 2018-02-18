@@ -15,38 +15,44 @@ from SpeechController import *
 pi = pigpio.pi()
 
 #Start the speech controller
-speech = SpeechController()
-speech.start()
+#speech = SpeechController()
+##.start()
 
 #Say what we're doing here
-speech.speak("Program starting.")
+#speech.speak("Program starting.")
 
-speech.speak("Booting sensors.")
+#speech.speak("Booting sensors.")
 
 #Boot sensors module
 sensors = SensorsController(pi)
 sensors.start()
 
 #Start our motor controller
-speech.speak("Preparing motors.")
-motors = MotorController(pi,
-                        Constants.leftMotorForward,
-                        Constants.leftMotorReverse,
-                        Constants.rightMotorForward,
-                        Constants.rightMotorReverse,
-                        decoder = sensors.getDecoder())
-motors.start()
+#speech.speak("Preparing motors.")
+time.sleep(1)
+try:
 
-#Read out battery voltage
-for i in range(3):
-    speech.sayVoltage(sensors.getBatteryVoltage())
-    #2 seconds between each read
-    time.sleep(2)
+    motors = MotorController(pi, decoder = sensors.getDecoder())
+    motors.start()
 
-speech.speak("Shutdown sequence commencing.")
+except NameError:
+    print("Problem importing motor controller.")
+    quit()
+
+time.sleep(0.5)
+
+
+
+#Move forward 100 cm
+motors.forwardFunction(speed = 5)
+time.sleep(2)
+motors.halt()
+
+
+#speech.speak("Shutdown sequence commencing.")
 
 #Close up our resources
-sensors.stop()
 motors.stop()
-speech.stop()
+sensors.stop()
+#speech.stop()
 pi.stop()

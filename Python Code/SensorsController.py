@@ -27,7 +27,7 @@ class SensorsController:
     #__init__ is called whenever our class is instantiated.
     #ie. sensors = SensorsController() is actually calling this __init__ class, implicitly
     #parameters with default arguments are specified optionally
-    def __init__(self, pi, ARDUINO_PORT = "/dev/ttyACM0", ARDUINO_BAUD = 9600, DECODER_CALLBACK = None):
+    def __init__(self, pi, ARDUINO_PORT = '/dev/ttyACM0', ARDUINO_BAUD = 9600, DECODER_CALLBACK = None):
         self.ARDUINO_PORT = ARDUINO_PORT                #Port for Arduino UNO/Leonardo is often /dev/ttyACM0 on RPi
         self.ARDUINO_BAUD = ARDUINO_BAUD                #Baud rate we set to 9600
         self.stopped = True                             #start out stopped
@@ -35,19 +35,40 @@ class SensorsController:
         self.dataQueue = deque(maxlen = 5)  #Buffer to hold last 5 recieved data packets
         #Data packets are in this order [Distance, IR Angle, Batt voltage]
         self.dataAverage = [0, 0, 0]
-        self.decoder = Decoder(pi, DECODER_CALLBACK)
+        self.decoder = Decoder(pi, Constants.leftEncoder, Constants.rightEncoder, DECODER_CALLBACK)
         self.averageCounter = 0
+        self.ser = None
+
+        self.attempt = 0
+
+
+        self.distanceCallback = None
+        self.distanceCallbackDistance = 15
 
     #Function to start up the sensors controller.
     #This must be used in order to use the class's data...
     def start(self):
-        self.ser = serial.Serial(self.ARDUINO_PORT, self.ARDUINO_BAUD, timeout = 1)  #Open Serial port
-        self.ser.flushInput()                                           #Flush serial buffer
+        while self.attempt < 1:
+            try:
+                print("Attempting to open serial port " + self.ARDUINO_PORT)
+                self.ser = serial.Serial(self.ARDUINO_PORT, self.ARDUINO_BAUD, timeout = 1)
+                #self.ser = serial.Serial(self.ARDUINO_PORT, self.ARDUINO_BAUD, timeout = 1)
+                print("Serial interface opened.")
+                self.ser.flushInput()
+                Thread(target = self.updateSerial, args=()).start()             #Start new thread on update function
+                self.attempt = 10
+            except:
+                self.stopped = True
+                if self.attempt == 0:
+                    self.ARDUINO_PORT = '/dev/ttyAMA0'
+                print("Could not open serial interface. Sensors unconnected.")
+                self.attempt += 1
+
 
         self.stopped = False                                            #We aren't stopped now :)
 
-        Thread(target = self.updateSerial, args=()).start()             #Start new thread on update function
-        self.decoder.start()                                            #Start our decoder
+        self.decoder.start()
+        time.sleep(1)          #Start our decoder
         print("Sensors Controller started.")
 
     #This function runs in its own thread
@@ -63,8 +84,12 @@ class SensorsController:
     ****************************************************
     '''
     def updateSerial(self):
+        print("")
         while not self.stopped:
+            time.sleep(1 / 15.0 )
+            #print("Reading serial string")
             self.readSerialString = self.ser.readline()                 #Read until newline
+            #print("Serial string: " + self.readSerialString)
             splitString = self.readSerialString.split(',')              #Parse the data from between the commas
 
             #Add current parsed data into queue. Order is: Distance, IRAngle, BatteryVoltage
@@ -76,6 +101,10 @@ class SensorsController:
                     self.dataQueue.appendleft([int(splitString[0]), int(splitString[1]), float(splitString[2])])
                     #Count used for averaging
                     self.averageCounter += 1
+
+                    if self.dataQueue[0][0] < self.distanceCallbackDistance and self.dataQueue[0][0] > 0:
+                        if self.distanceCallback is not None:
+                            self.distanceCallback()
 
                 #Make sure we have a full data queue, and we have been counting for averages
                 if (len(self.dataQueue) >= 5) and self.averageCounter >= 3:
@@ -106,7 +135,10 @@ class SensorsController:
 
     #Return the distance sensor distance stored in the dataAverage array
     def getUSDistance(self):
-        return self.dataAverage[0]
+        if self.dataAverage[0] == 0:
+            return -1
+        else:
+            return self.dataAverage[0]
 
     #Return the battery voltage stored in the dataAverage array
     def getBatteryVoltage(self):
@@ -117,7 +149,9 @@ class SensorsController:
     #Plus, who wants resource leaks, right?
     def stop(self):
         self.stopped = True
-        self.ser.close()
+        if self.ser is not None:
+            time.sleep(0.5)
+            self.ser.close()
         self.decoder.stop()
         print("Stopped sensors controller.")
 
@@ -129,6 +163,9 @@ class SensorsController:
     def getDecoder(self):
         return self.decoder
 
+    def setDistanceCallback(self, callback):
+        self.distanceCallback = callback
+
 '''
 *	Class: Decoder.py
 *	Description:	Decoder is a class that sets up callback functions in order
@@ -139,7 +176,7 @@ class SensorsController:
 class Decoder:
 
     #Note: Callback function should have a parameter that expects an int for the pin number
-    def __init__(self, pi, leftEncoderPin = Constants.leftEncoder, rightEncoderPin = Constants.rightEncoder, callbackFunction = None):
+    def __init__(self, pi, leftEncoderPin, rightEncoderPin, callbackFunction = None):
 
         #Set the variables given in the constructor
         self.pi = pi
@@ -159,7 +196,7 @@ class Decoder:
         self.pi.set_pull_up_down(self.rightEncoderPin, pigpio.PUD_OFF)
 
         #Max number of deltas to store (for averaging), or for memory
-        self.deltaStore = 15
+        self.deltaStore = 5
 
         #Queue for left wheel deltas
         self.Ldeltas = deque(maxlen = self.deltaStore)          #Deque to show the deltas for the last 5 ticks (could be for averaging)
@@ -192,8 +229,14 @@ class Decoder:
     ****************************************************
     '''
     def getDeltaAverages(self):
-        dSums = (0, 0)
-        for i in range(len(self.Rdeltas) - 1):
+        dSums = [0, 0]
+
+        if (len(self.Ldeltas) == 0) or (len(self.Rdeltas) == 0):
+            return dSums
+
+        rnge = min(len(self.Rdeltas), len(self.Ldeltas))
+
+        for i in range(rnge - 1):
             dSums[self.LEFT] += self.Ldeltas[i]
             dSums[self.RIGHT] += self.Rdeltas[i]
 

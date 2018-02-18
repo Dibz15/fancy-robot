@@ -21,6 +21,7 @@ import imp
 
 #Import Constant.py module from different directory
 Constants = imp.load_source('Constants', '../Constants.py')
+PanTiltControl = imp.load_source('PanTiltControl', '../PanTiltControl.py')
 
 #Turn off RPi GPIO warnings
 GPIO.setwarnings(False)
@@ -37,6 +38,11 @@ if not pi.connected:
 rCV = RoboCV()
 rCV.start()
 
+#Start our camera movement control
+ptC = PanTiltControl.PanTiltControl(Constants.panPin, Constants.tiltPin, pi)
+ptC.start()
+ptC.setServo(ptC.getTiltPin(), 110)
+
 #Set our current image processing to line following
 rCV.setCurrentVisionFunction("LineFollower")
 
@@ -49,6 +55,8 @@ while rCV.getCurrentVisionFunctionValue("lineImage") is None:
 startTime = time.time()
 
 #Keep doing this until the user exits
+prevDirection = 0
+
 while True:
 	# ~10fps
 	time.sleep( 1.0 / 10.0 )
@@ -66,11 +74,23 @@ while True:
 	#As long as we aren't missing too many contours, we can trust the direction info
 	if rCV.getCurrentVisionFunctionValue("missingContours") < 3:
 		direction = rCV.getCurrentVisionFunctionValue("direction")
+		angle = rCV.getCurrentVisionFunctionValue("angle")
+		missingContours = rCV.getCurrentVisionFunctionValue("missingContours")
 		#Print out our direction information
-		print("Direction " + str(direction))
+		print("Direction " + str(direction) + ", Angle: " + str(angle) + ", MissingContours: " + str(missingContours))
+
+		ptAngle = ptC.getCurrentAngle(ptC.getPanPin())
+		ptAngleDelta = (direction * 0.009)
+		directionDelta = (direction - prevDirection) * 0.04
+
+		ptAngle = max(70, min(110, ptAngle + ptAngleDelta + directionDelta))
+		ptC.setServo(ptC.pan, ptAngle)
+
+		prevDirection = direction
 
 
 #Clean up our resources
+ptC.stop()
 rCV.stop()
 pi.stop()
 GPIO.cleanup()
