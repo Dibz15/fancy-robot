@@ -143,6 +143,9 @@ void findDistance() {
   // Calculating the distance
   //This equation comes from the datasheet of the rangefinder.
   distance = duration / 58.0;
+  if (distance == 0){
+    distance = -1;
+  }
 }
 
 
