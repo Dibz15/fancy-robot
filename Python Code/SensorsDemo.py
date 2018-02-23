@@ -42,10 +42,9 @@ except NameError:
 time.sleep(0.5)
 
 
-
 #Move forward 100 cm
-motors.forwardFunction(speed = 5)
-time.sleep(2)
+motors.turnAngleFunction(angle = 70, wheel = motors.LEFT)
+motors.waitOnAction()
 motors.halt()
 
 

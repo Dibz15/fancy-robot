@@ -258,26 +258,33 @@ class MotorController:
 
     def forwardFunction(self, distance = -1, speed = -1):
         self.halted = False
+        self.stallState = [False, False]
         self.currentOperation = LinearFunction(self.decoder, self, distance = distance, targetSpeed = speed, direction = 0)
 
     def reverseFunction(self, distance = -1, speed = -1):
         self.halted = False
+        self.stallState = [False, False]
         self.currentOperation = LinearFunction(self.decoder, self, distance = distance, targetSpeed = speed, direction = 1)
 
     def turnAngleFunction(self, angle, wheel = None, targetSpeed = -1):
         self.halted = False
+        self.stallState = [False, False]
         self.currentOperation = TurnAngleFunction(self.decoder, self, angle, wheel, targetSpeed)
-
-
-    def getCurrentDutyCycle(self, motorPin):
-        return self.duty[motorPin]
 
     def waitOnAction(self):
         while not self.currentOperation.complete:
             time.sleep(0.2)
-            pass
 
         return
+
+    def getStallState(self):
+        return self.currentOperation.stallState
+
+    def setStallState(self, state):
+        self.currentOperation.stallState = state
+
+    def getCurrentDutyCycle(self, motorPin):
+        return self.duty[motorPin]
 
     def dutyToPower(self, duty):
         return (duty / 255.0) * 100.0
@@ -398,6 +405,8 @@ class MotorFunction:
         self.targetSpeed = targetSpeed
         self.motors = motors
 
+        self.stallState = [False, False]
+
         self.decoder.clearDeltas()
         self.decoder.resetCounters()
 
@@ -424,10 +433,13 @@ class LinearFunction(MotorFunction):
 
         self.targetPwr = 80
 
-        self.dPID = PID(initSetpoint = 0.0, Kp = 9.0, Ki = 1.0, Kd = 0.09)
-        self.sPID = PID(initSetpoint = targetSpeed, Kp = 5.0, Ki = 0.5, Kd = 0.1)
+        self.dPID = PID(initSetpoint = 0.0, Kp = 8.0, Ki = 1.0, Kd = 0.09)
+        self.sPID = PID(initSetpoint = self.targetSpeed, Kp = 2.3, Ki = 0.3, Kd = 0.12)
         #TODO
         self.mDPID = MotorDistancePID(self.decoder, self.dPID, self.targetPwr)
+
+
+
 
     def operate(self):
         if self.complete:
@@ -442,14 +454,27 @@ class LinearFunction(MotorFunction):
         self.Lticks = self.decoder.getCounter()[0]
         self.Rticks = self.decoder.getCounter()[1]
 
+        #If neither distance nor speed were specified, just go at a steady rate.
         if self.targetDistance == -1 and self.targetSpeed == -1:
             self.runUpdate()
 
+        #If we specified distance
         if self.targetDistance != -1:
             self.distanceUpdate()
 
+        #If we specified speed.
         if self.targetSpeed != -1:
             self.speedUpdate()
+
+        if (((time.time() * 1000) - self.decoder.getLastTickTime()[0])) > 200:
+            self.stallState[0] = True
+        else:
+            self.stallState[0] = False
+
+        if (((time.time() * 1000) - self.decoder.getLastTickTime()[1])) > 200:
+            self.stallState[1] = True
+        else:
+            self.stallState[1] = False
 
         return
 
@@ -501,20 +526,47 @@ class LinearFunction(MotorFunction):
         rTargetPwr = self.mDPID.getOutput()[1]
 
         averages = self.decoder.getDeltaAverages()
-        print("Avg: " + str(averages))
+        #print("Avg: " + str(averages))
 
 
         lV = self.motors._deltaToLinearVelocity(self.motors._msToS(averages[0]), self.motors._mmToCm(self.motors.LEFT_RADIUS_MM))
         rV = self.motors._deltaToLinearVelocity(self.motors._msToS(averages[0]), self.motors._mmToCm(self.motors.RIGHT_RADIUS_MM))
 
-        print("Velocities: (" + str(lV) + ", " + str(rV) + ")")
+        #print("Velocities: (" + str(lV) + ", " + str(rV) + ")")
 
         if (((time.time() * 1000) - self.decoder.getLastTickTime()[0])) > 200:
             print("Left stalled")
+            lV = 0.0
 
         if (((time.time() * 1000) - self.decoder.getLastTickTime()[1])) > 200:
             print("Right stalled")
+            rV = 0.0
 
+        lV = max(lV, 0.0)
+        rV = max(rV, 0.0)
+        #The wheels should be going a similar speed, due to our other PID loop, so it's safe to
+        #use the average as the input into our speed PID.
+        aV = (lV + rV) * 0.5
+        #print("AV: " + str(aV))
+        #print("Target speed: " + str(self.targetSpeed))
+
+        #Update our speed PID loop, given the real speed.
+        #It will compare its setpoint (targetSpeed) to the given speed, and calculate the new output power delta for us
+        #print("SPID update")
+        self.sPID.update(aV)
+
+        #Get our calculated wheel power delta
+        newPwrDelta = self.sPID.getOutput()
+        #print("Pwr delta: " + str(newPwrDelta))
+
+        #print("Old pwr: " + str(self.targetPwr))
+        #Clamp our targetPower to 99%, since 100% is absolute max.
+        newTargetPwr = min(self.targetPwr + newPwrDelta, 99.0)
+        #print("New pwr: " + str(newTargetPwr))
+        #Make sure our distance PID knows of the new target power.
+        self.mDPID.setTargetPwr(newTargetPwr)
+
+        #Update our motor power
         if self.direction == self.FORWARD:
             self.motors.forward(lTargetPwr, rTargetPwr)
         elif self.direction == self.REVERSE:
@@ -544,7 +596,17 @@ class TurnAngleFunction(MotorFunction):
             if (self.angle == 0) or self.complete:
                 return
 
-            print("DesiredTicks: " + str(self.desiredAngleTicks) + ", ticks: " + str(self.decoder.getCounter()))
+            if (((time.time() * 1000) - self.decoder.getLastTickTime()[0])) > 200:
+                self.stallState[0] = True
+            else:
+                self.stallState[0] = False
+
+            if (((time.time() * 1000) - self.decoder.getLastTickTime()[1])) > 200:
+                self.stallState[1] = True
+            else:
+                self.stallState[1] = False
+
+            #print("DesiredTicks: " + str(self.desiredAngleTicks) + ", ticks: " + str(self.decoder.getCounter()))
 
             #Whether or not we have a speed to keep
             if self.targetSpeed != -1:
@@ -591,13 +653,13 @@ class TurnAngleFunction(MotorFunction):
                     self.wheel = int(self.wheel)
 
                     #If we're using the left wheel
-                    if self.wheel == motors.LEFT:
+                    if self.wheel == self.motors.LEFT:
                         #If we haven't yet reached our mark
                         if (self.decoder.getCounter()[0] < self.desiredAngleTicks[0]):
                             if self.angle > 0:
-                                self.motors.leftTurn(pwr, 0)
+                                self.motors.leftTurn(self.targetPwr, 0)
                             elif self.angle < 0:
-                                self.motors.rightTurn(pwr, 0)
+                                self.motors.rightTurn(self.targetPwr, 0)
                         #If we have reached our mark
                         elif (self.decoder.getCounter()[0] >= self.desiredAngleTicks[0]):
                             #We're done now
@@ -605,13 +667,13 @@ class TurnAngleFunction(MotorFunction):
                             self.complete = True
 
                     #If we're using the right wheel
-                    elif self.wheel == motors.RIGHT:
+                    elif self.wheel == self.motors.RIGHT:
                         #If we haven't reached our mark
                         if (self.decoder.getCounter()[1] < self.desiredAngleTicks[1]):
                             if self.angle > 0:
-                                self.motors.leftTurn(0, pwr)
+                                self.motors.leftTurn(0, self.targetPwr)
                             elif self.angle < 0:
-                                self.motors.rightTurn(0, pwr)
+                                self.motors.rightTurn(0, self.targetPwr)
                         #If we have reached it
                         elif (self.decoder.getCounter()[1] >= self.desiredAngleTicks[1]):
                             #Signal we're done

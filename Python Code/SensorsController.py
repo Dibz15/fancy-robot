@@ -14,7 +14,7 @@ from threading import Thread
 
 
 '''
-*	Class: SensorsController.py
+*	Class: SensorsController
 *	Description:	SensorsController is a threaded class which
 *       takes care of the robot's serial communication and wheel decoder callbacks.
 *       Through serial, it collects information from the ultrasonic sensor,
@@ -43,7 +43,11 @@ class SensorsController:
 
 
         self.distanceCallback = None
-        self.distanceCallbackDistance = 15
+        self.voltageCallback = None
+
+        self.distanceCallbackDistance = 20
+        self.voltageCallbackVoltage = 3.50
+
 
     #Function to start up the sensors controller.
     #This must be used in order to use the class's data...
@@ -102,9 +106,16 @@ class SensorsController:
                     #Count used for averaging
                     self.averageCounter += 1
 
+                    #Check for a critical distance value
                     if self.dataQueue[0][0] < self.distanceCallbackDistance and self.dataQueue[0][0] > 0:
+                        #If we have a callback function
                         if self.distanceCallback is not None:
                             self.distanceCallback()
+
+                    #Check for a critical voltage value
+                    if self.dataQueue[0][2] < self.voltageCallbackVoltage and self.dataQueue[0][2] > 0:
+                        if self.voltageCallback is not None:
+                            self.voltageCallback()
 
                 #Make sure we have a full data queue, and we have been counting for averages
                 if (len(self.dataQueue) >= 5) and self.averageCounter >= 3:
@@ -165,6 +176,9 @@ class SensorsController:
 
     def setDistanceCallback(self, callback):
         self.distanceCallback = callback
+
+    def setVoltageCallback(self, callback):
+        self.voltageCallback = callback
 
 '''
 *	Class: Decoder.py
