@@ -6,12 +6,15 @@ const int echoPin = 7;
 
 const int batteryPin = A0;
 
+const int chargePin = A1;
+
 // defines variables
 long duration;
 
 int distance;
 float batteryVoltage;
 int irAngle;
+float chargeVoltage;
 
 //Function headers
 void findDistance();
@@ -19,11 +22,13 @@ void readIR();
 long readVcc();
 void readBatteryVoltage();
 void printData();
+void readChargingVoltage();
 
 //Protothreaded actions
 TimedAction distanceAction = TimedAction(200, findDistance);
 TimedAction irAction = TimedAction(100, 200, readIR);
 TimedAction batteryAction = TimedAction(1000, readBatteryVoltage);
+TimedAction chargeAction = TimedAction(1000, readChargingVoltage);
 TimedAction printAction = TimedAction(50, 100, printData);
 
 
@@ -33,8 +38,10 @@ void setup() {
 
  //Infrared reciever pins
   DDRB = 0x0;
+  //PORTB = 0xFF;
 
   pinMode(batteryPin, INPUT); //Battery voltage read pin
+  pinMode(chargePin, INPUT);
 
   Serial.begin(9600); // Starts the serial communication
 
@@ -47,6 +54,7 @@ void loop() {
   distanceAction.check();
   irAction.check();
   batteryAction.check();
+  chargeAction.check();
   printAction.check();
 
 }
@@ -61,6 +69,8 @@ void printData() {
   Serial.print(irAngle);
   Serial.print(",");
   Serial.print(batteryVoltage);
+  Serial.print(",");
+  Serial.print(chargeVoltage);
   Serial.println();
 
 }
@@ -170,6 +180,15 @@ void readBatteryVoltage() {
   unsigned int raw = analogRead(batteryPin);
   batteryVoltage = ((float) raw / 1023.0 * (Vcc / 1000.0));
 
+}
+
+void readChargingVoltage() {
+  long Vcc = readVcc();
+
+  //Read charging voltage here
+  unsigned int raw = analogRead(chargePin);
+  chargeVoltage = ((float) raw / 1023.0 * (Vcc / 1000.0));
+  
 }
 
 //This function finds the approximate distance of the object
