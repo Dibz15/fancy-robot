@@ -1,7 +1,7 @@
 import pigpio
 import time
 import Constants
-from OpenCV.RoboCV import *
+
 from MotorController import *
 from SensorsController import *
 from SpeechController import *
@@ -10,6 +10,8 @@ from aiState import *
 from PanTiltControl import *
 from threading import Thread
 import imp
+from OpenCV.RoboCV import *
+
 #Main control for the robot here...
 #needs to keep track of CV, IR, ultrasonic, etc...
 
@@ -40,11 +42,22 @@ sensors.start()
 motors.start()
 panTilt.start()
 rCV.start()
+time.sleep(.5)
+
 ai.start()
 
 
+rCV.setCurrentVisionFunction("LineFollower")
+
+'''
+print("Waiting for line image in main")
+while rCV.getCurrentVisionFunctionValue("modified") is None:
+    time.sleep(0.1)
+    continue
+'''
+
 #implement while update loop here
-for i in range(5):
+for i in range(100):
     time.sleep(1.0 / 20.0)
     ai.update()
 

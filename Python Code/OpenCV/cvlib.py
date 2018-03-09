@@ -154,6 +154,47 @@ def get_rect(image):
 
     return None
 
+def get_rect_via_ratio(image, ratio):
+    cnts = cv2.findContours(image.copy(), cv2.RETR_LIST,
+        cv2.CHAIN_APPROX_SIMPLE)[-2]
+    cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:1]
+    center = None
+
+    screenCnt = None
+
+    if len(cnts) > 0:
+        #Find the rectangle
+        for c in cnts:
+            #approximate the contours
+            peri = cv2.arcLength(c, True)
+            approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+
+            #If our approximated contour has 4 pts, then it's a rectangle
+            if len(approx) == 4:
+                screenCnt = approx
+
+                return screenCnt
+
+    return None
+
+def getContourCenter(contour):
+    M = cv2.moments(contour)
+
+    if M["m00"] == 0:
+        return [0, 0]
+
+    x = int(M["m10"]/M["m00"])
+    y = int(M["m01"]/M["m00"])
+
+    return [ x, y ]
+
+def getContourExtent(contour):
+    area = cv2.contourArea(contour)
+    x,y,w,h = cv2.boundingRect(contour)
+    rect_area = w * h
+    if rect_area > 0:
+        return (float(area) / rect_area)
+
 '''
 ****************************************************
 *Function: warp_perspective

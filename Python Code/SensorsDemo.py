@@ -39,13 +39,10 @@ except NameError:
     print("Problem importing motor controller.")
     quit()
 
-time.sleep(0.5)
+time.sleep(5)
 
 
-#Move forward 100 cm
-motors.turnAngleFunction(angle = 70, wheel = motors.LEFT)
-motors.waitOnAction()
-motors.halt()
+
 
 
 #speech.speak("Shutdown sequence commencing.")

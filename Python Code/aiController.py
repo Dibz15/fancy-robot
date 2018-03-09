@@ -30,12 +30,24 @@ class aiController:
         self.panTiltString = "panTilt"
         self.rCVString = "rCV"
         self.sensorString = "sensors"
+
         initialState = lineFollowState(self)
+
+        self.collisionCBtriggered = True
+        self.collisionCBenable = True       #used within aiState's findHomeState's alignCenter function
+        self.voltageCBtriggered = True
+        self.sensors.setDistanceCallback(self.collisionCB)
+        self.sensors.setVoltageCallback(self.voltageCB)
+
         #initialize stack with given initialState(from Main)
 
         print ("pushing initial state onto stack")
         self.aiStack = collections.deque()
         self.aiStack.appendleft(initialState)
+        time.sleep(0.1)
+
+        self.collisionCBtriggered = False
+        self.voltageCBtriggered = False
 
 #gets access to any of the controller classes
     def getController(self, controlName):
@@ -66,22 +78,33 @@ class aiController:
         self.stopped = True
 
 #called from sensorsController if immminent collision detected.
-    def collisionCB():
-        self.motors.halt()                   #imminent collision, stop motors
-        self.speech.speak("imminent collision detected")
-        self.speech.speak("halting motors.")
-        self.speech.speak("switching to avoidance state")
-        self.pushState(avoidanceState(self)) #push the avoidanceState onto the stack
+    def collisionCB(self):
+        if not self.collisionCBtriggered and self.collisionCBenable:
+            self.collisionCBtriggered = True
+            self.motors.halt()                   #imminent collision, stop motors
+            self.pushState(avoidanceState(self)) #push the avoidanceState onto the stack
+            print ("in aiC collisionCB")
+            #self.speech.speak("imminent collision detected")
+            #self.speech.speak("halting motors.")
+            #self.speech.speak("Avoidance state")
 
 #called from sensorsController if battery voltage polled as critical value
-    def voltageCB():
-        self.speech.speak("critical battery voltage detected.")
-        self.speech.speak("halting motors.")
-        self.motors.halt()                     #halt motors
-        self.speech.speak("switching to find home state")
+    def voltageCB(self):
+        if not self.voltageCBtriggered:
+            self.voltageCBtriggered = True
+            self.motors.halt()
+            print("Voltage low")
+            #print("Stack top: " + str(self.peekState()))
+            self.aiStack.clear()                #clear stack of all States
+            time.sleep(0.1)
+            self.pushState(findHomeState(self))  #push findHomeState onto the stack
+            #self.speech.speak("critical battery voltage detected.")
+            #self.speech.speak("halting motors.")
+                              #halt motors
+            #self.speech.speak("switching to find home state.")
+            print("Going to find home state")
 
-        self.aiStack.clear()                #clear stack of all States
-        self.pushState(findHomeState(self))  #push findHomeState onto the stack
+
 
 
 #pushes a given state onto stack
@@ -90,14 +113,28 @@ class aiController:
 
 #pops a given state from stack
     def popState (self):
+        if (len(self.aiStack) != 0):
+            return self.aiStack.popleft()
+        else:
+            return None
 
-        return self.aiStack.popleft()
+    def peekState(self):
+        if (len(self.aiStack) != 0):
+            return self.aiStack[0]
+        else:
+            return None
 
+    def clearStack(self):
+        self.aiStack.clear()
 
 
 #calls update of the current state
     def update(self):
-        stateToUpdate = self.aiStack[0]
-        if stateToUpdate is not None:
-            stateToUpdate.update()
-        print("Updating aiController")
+        if (len(self.aiStack) != 0):
+            stateToUpdate = self.aiStack[0]
+
+            if stateToUpdate is not None:
+                print("Updating state: " + str(stateToUpdate))
+                stateToUpdate.update()
+
+        #print("Updating aiController")

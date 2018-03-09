@@ -27,6 +27,7 @@ def serial_ports():
             s.close()
             result.append(port)
         except (OSError, serial.SerialException):
+            print("Couldn't connect with port: " + str(port))
             pass
     return result
 

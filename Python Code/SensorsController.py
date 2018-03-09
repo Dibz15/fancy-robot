@@ -11,6 +11,7 @@ import pigpio
 from collections import deque
 import time
 from threading import Thread
+import re
 
 
 '''
@@ -34,30 +35,46 @@ class SensorsController:
         self.readSerialString = ""                      #Place to read in current string
         self.dataQueue = deque(maxlen = 5)  #Buffer to hold last 5 recieved data packets
         #Data packets are in this order [Distance, IR Angle, Batt voltage]
-        self.dataAverage = [0, 0, 0]
+        self.dataAverage = [5, 5, 5, 0]
         self.decoder = Decoder(pi, Constants.leftEncoder, Constants.rightEncoder, DECODER_CALLBACK)
         self.averageCounter = 0
         self.ser = None
 
         self.attempt = 0
 
-
         self.distanceCallback = None
         self.voltageCallback = None
 
-        self.distanceCallbackDistance = 20
-        self.voltageCallbackVoltage = 3.50
+        self.distanceCallbackDistance = 30
+        self.voltageCallbackVoltage = 3.30 #3.50
+        self.chargingCallbackVoltage = 3.50
 
 
     #Function to start up the sensors controller.
     #This must be used in order to use the class's data...
     def start(self):
-        while self.attempt < 1:
+        while self.attempt < 3:
+            time.sleep(0.5)
             try:
                 print("Attempting to open serial port " + self.ARDUINO_PORT)
                 self.ser = serial.Serial(self.ARDUINO_PORT, self.ARDUINO_BAUD, timeout = 1)
-                #self.ser = serial.Serial(self.ARDUINO_PORT, self.ARDUINO_BAUD, timeout = 1)
+
                 print("Serial interface opened.")
+
+                time.sleep(0.2)
+                matcher = re.compile('\n')
+                tic     = time.time()
+                buff    = self.ser.read(20)
+
+                # you can use if not ('\n' in buff) too if you don't like re
+                while ((time.time() - tic) < 1.2) and (not matcher.search(buff)):
+                    buff += self.ser.read(20)
+
+                #print("Buffer: " + str(buff))
+                if len(buff) == 0:
+                    print("Empty recieved buffer")
+                    raise Exception('No contents read from serial port.')
+
                 self.ser.flushInput()
                 Thread(target = self.updateSerial, args=()).start()             #Start new thread on update function
                 self.attempt = 10
@@ -65,6 +82,8 @@ class SensorsController:
                 self.stopped = True
                 if self.attempt == 0:
                     self.ARDUINO_PORT = '/dev/ttyAMA0'
+                elif self.attempt == 1:
+                    self.ARDUINO_PORT = '/dev/ttyUSB0'
                 print("Could not open serial interface. Sensors unconnected.")
                 self.attempt += 1
 
@@ -88,7 +107,7 @@ class SensorsController:
     ****************************************************
     '''
     def updateSerial(self):
-        print("")
+        print("Serial thread started.")
         while not self.stopped:
             time.sleep(1 / 15.0 )
             #print("Reading serial string")
@@ -97,23 +116,29 @@ class SensorsController:
             splitString = self.readSerialString.split(',')              #Parse the data from between the commas
 
             #Add current parsed data into queue. Order is: Distance, IRAngle, BatteryVoltage
+            #print("Data: " + self.readSerialString)
 
             try:
                 #Make sure we have our data
-                if splitString[0] != '' and splitString[1] != '' and splitString[2] != '':
+                if splitString[0] != '' and splitString[1] != '' and splitString[2] != '' and splitString[3] != '':
                     #Add our parsed data into the data queue
-                    self.dataQueue.appendleft([int(splitString[0]), int(splitString[1]), float(splitString[2])])
+                    self.dataQueue.appendleft([int(splitString[0]), int(splitString[1]), float(splitString[2]), float(splitString[3])])
                     #Count used for averaging
                     self.averageCounter += 1
 
+                    #print("Distance: " + str(self.dataQueue[0][0]))
                     #Check for a critical distance value
                     if self.dataQueue[0][0] < self.distanceCallbackDistance and self.dataQueue[0][0] > 0:
                         #If we have a callback function
                         if self.distanceCallback is not None:
+                            #print("Calling distance CB")
                             self.distanceCallback()
 
                     #Check for a critical voltage value
-                    if self.dataQueue[0][2] < self.voltageCallbackVoltage and self.dataQueue[0][2] > 0:
+                    #TODO temp for testing find home state
+                    self.dataAverage[2] = 3.00
+                    #print("DAvg: " + str(self.dataAverage[2]))
+                    if self.dataAverage[2] < self.voltageCallbackVoltage and self.dataQueue[0][2] > 0:
                         if self.voltageCallback is not None:
                             self.voltageCallback()
 
@@ -123,6 +148,7 @@ class SensorsController:
                     totalUS = 0.0
                     totalIRAngle = 0.0
                     totalVoltage = 0.0
+                    totalCharge = 0.0
 
                     dataQueueLen = len(self.dataQueue)
 
@@ -132,9 +158,10 @@ class SensorsController:
                         totalUS += d[0]
                         totalIRAngle += d[1]
                         totalVoltage += d[2]
+                        totalCharge += d[3]
 
                     #Calculate the average from the sums
-                    self.dataAverage = [int(totalUS / dataQueueLen), totalIRAngle / dataQueueLen, totalVoltage / dataQueueLen]
+                    self.dataAverage = [int(totalUS / dataQueueLen), totalIRAngle / dataQueueLen, totalVoltage / dataQueueLen, totalCharge / dataQueueLen]
                     #print("Arduino data average: " + str(self.dataAverage))
             except:
                 #If we had a serial error, just skip this packet
@@ -154,6 +181,12 @@ class SensorsController:
     #Return the battery voltage stored in the dataAverage array
     def getBatteryVoltage(self):
         return self.dataAverage[2]
+
+    def getChargeVoltage(self):
+        return self.dataAverage[3]
+
+    def isCharging(self):
+        return (self.getChargeVoltage() > self.chargingCallbackVoltage)
 
     #You gotta call this to stop the thread
     #Otherwise it may not stop when you go to close the whole program :D

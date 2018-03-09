@@ -38,8 +38,8 @@ class PanTiltControl:
     ****************************************************
     '''
     def pointDown(self):
-        print("Pointing down")
-        self.setServo(self.tilt, 45)
+        #print("Pointing down")
+        self.setServo(self.tilt, 135)
 
     '''
     ****************************************************
@@ -130,8 +130,7 @@ class PanTiltControl:
     def incServo(self, servo, amount):
         self.angle[servo] = int(self.angle[servo]) + amount
         self.angle[servo] = max(0, min(180, self.angle[servo]))
-        self.pi.set_servo_pulsewidth(servoPin, (self.angle[servo] / 180 * 2000) + 500)
-        self.angle[servo] = angle
+        self.setServo(servo, self.angle[servo])
 
     def getTiltPin(self):
         return self.tiltPin

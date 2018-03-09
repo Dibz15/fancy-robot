@@ -434,7 +434,7 @@ class LinearFunction(MotorFunction):
         self.targetPwr = 80
 
         self.dPID = PID(initSetpoint = 0.0, Kp = 8.0, Ki = 1.0, Kd = 0.09)
-        self.sPID = PID(initSetpoint = self.targetSpeed, Kp = 2.3, Ki = 0.3, Kd = 0.12)
+        self.sPID = PID(initSetpoint = self.targetSpeed, Kp = 2.5, Ki = 0.3, Kd = 0.12)
         #TODO
         self.mDPID = MotorDistancePID(self.decoder, self.dPID, self.targetPwr)
 
@@ -535,11 +535,11 @@ class LinearFunction(MotorFunction):
         #print("Velocities: (" + str(lV) + ", " + str(rV) + ")")
 
         if (((time.time() * 1000) - self.decoder.getLastTickTime()[0])) > 200:
-            print("Left stalled")
+            #print("Left stalled")
             lV = 0.0
 
         if (((time.time() * 1000) - self.decoder.getLastTickTime()[1])) > 200:
-            print("Right stalled")
+            #print("Right stalled")
             rV = 0.0
 
         lV = max(lV, 0.0)

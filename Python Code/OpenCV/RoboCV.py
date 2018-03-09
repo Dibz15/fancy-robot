@@ -27,6 +27,8 @@ class RoboCV:
         self.visionFunctions = {}
         self.visionFunctions["LineFollower"] = LineFollower()
         self.visionFunctions["HSVFinder"] = HSVFinder()
+        self.visionFunctions["BaseFinder"] = BaseFinder()
+        self.visionFunctions["DistanceCalibrator"] = DistanceCalibrator()
         self.currFrame = None
 
     #Name of this class
@@ -65,6 +67,8 @@ class RoboCV:
                 self.currentVisionFunction.operate(self.currFrame)
         return
 
+    def setIfRenderText( self , renderText ) :
+        self.currentVisionFunction.renderText = renderText
 
     def getPiCameraStream( self ) :
         return self.cameraStream
@@ -101,6 +105,7 @@ class VisionFunction:
     def __init__(self) :
         self.values = {}
         self.values["name"] = "VisionFunction"
+        self.renderText = False
         return
 
     def operate( self, rawFrame ):
@@ -135,14 +140,11 @@ class LineFollower(VisionFunction):
         self.minGreen = (47, 140, 60) #Perhaps this will find green?
         self.maxGreen = (70, 255, 255)
 
-        self.minIRGreen = (53, 76, 20)
-        self.maxIRGreen = (152, 168, 253)
+        self.minOrange = (0, 179, 105) #Perhaps this will find green?
+        self.maxOrange = (20, 255, 225)
 
         #Array of the image parts of the current frame
         self.imageParts = []
-
-        #Render the overlay?
-        self.renderText = True
 
         #Add our image slice objects to the array
         for i in range(numSlices):
@@ -172,9 +174,7 @@ class LineFollower(VisionFunction):
 
         #Convert it to a binary image based on the color thresholds
         binarized = binarize(rawResized, self.minGreen, self.maxGreen)
-        #binarizedIR = binarize(rawResized, self.minIRGreen, self.maxIRGreen)
-
-        #finalBinarized = cv2.bitwise_or(binarized, binarizedIR)
+        #binarized = binarize(rawResized, self.minOrange, self.maxOrange)
 
         #Slice up the image and calculate the direction center for each piece
         sliceImage(binarized, self.imageParts, self.numSlices, self.renderText, rawResized)
@@ -297,9 +297,16 @@ class HSVFinder(VisionFunction):
             time.sleep(1)
 
         #20 fps
-        time.sleep( 1 / 20 )
+        time.sleep( 1.0 / 15.0 )
         #resize frame for efficiency
-        rawResized = imutils.resize(rawFrame, height = 400)
+        #rawResized = imutils.resize(rawFrame, height = 400)
+        #print("Looping hsvFinder")
+
+        r = 400.0 / rawFrame.shape[1]
+        dim = (400, int(rawFrame.shape[0] * r))
+
+        # perform the actual resizing of the image and show it
+        rawResized = cv2.resize(rawFrame, dim, interpolation = cv2.INTER_AREA)
         self.values["resized"] = rawResized
 
         #Find the color :D
@@ -313,3 +320,280 @@ class HSVFinder(VisionFunction):
 
     def __str__(self):
         return "HSVFinder"
+
+'''
+*	Class: BaseFinder
+*	Description: Class for operating on images, and searching for our base marker
+*       The RoboCV interface allows access to the data acquired by this class
+*	Author(s):		Austin Dibble
+*	Date Created:	3/1/18
+'''
+class BaseFinder(VisionFunction):
+    def __init__(self):
+        VisionFunction.__init__(self)
+        self.values["name"] = "BaseFinder"
+        self.values["binarized"] = None
+        self.values["resized"] = None
+        self.values["edges"] = None
+        self.values["direction"] = 0
+        self.values["angle"] = 90
+        self.values["coords"] = [0, 0]
+        self.values["lineAbsent"] = True
+        self.values["distance"] = -1.0
+        self.values["rectArea"] = 0
+
+        self.lineAbsent = True
+
+        #Our green color HSV values we're looking for
+        self.minOrange = (0, 179, 85) #Perhaps this will find green?
+        self.maxOrange = (20, 255, 225)
+
+        self.direction = 0
+        self.distance = -1.0
+
+        #Gives the coordinate of the rectangle, if found
+        self.coords = [0, 0]
+
+        self.focalLength = 381.0 #in cm
+        self.KNOWN_DISTANCE = 15 #in cm
+        #self.KNOWN_WIDTH = 4.73 #in cm
+        self.KNOWN_WIDTH = 7.3 #in cm
+
+        #Averages: direction average, area average, distance average
+        self.averageQueue = (deque(maxlen = 5), deque(maxlen = 5), deque(maxlen = 5), deque(maxlen = 5))
+        self.averages = [0, 0, 0]
+
+        self.values["averageQueue"] = self.averageQueue
+        self.values["averages"] = self.averages
+
+        return
+
+    def distance_to_camera(self, knownWidth, focalLength, perWidth):
+    	# compute and return the distance from the maker to the camera
+    	return (knownWidth * focalLength) / perWidth
+
+    def standard_deviation(self, lst):
+        num_items = len(lst)
+        mean = sum(lst) / num_items
+        differences = [x - mean for x in lst]
+        sq_differences = [d **2 for d in differences]
+        ssd = sum(sq_differences)
+
+        variance = ssd / (num_items - 1)
+        sd = math.sqrt(variance)
+        return sd
+
+    def isOutlier(self, value, mean, standardDeviation):
+        return (abs(value) > (mean + (2 * standardDeviation)))
+
+
+    def operate( self, rawFrame ) :
+        time.sleep(1.0 / 15.0)
+        self.direction = 0
+
+        #Resize our video stream for performance
+        #rawResized = imutils.resize(rawFrame, height = 400)
+
+        r = 400.0 / rawFrame.shape[1]
+        dim = (400, int(rawFrame.shape[0] * r))
+
+        # perform the actual resizing of the image and show it
+        rawResized = cv2.resize(rawFrame, dim, interpolation = cv2.INTER_AREA)
+        height, width = rawResized.shape[:2]
+
+        #Convert it to a binary image based on the color thresholds
+        binarized = binarize(rawResized, self.minOrange, self.maxOrange)
+        #detect rectangle contours
+        edges = auto_canny(binarized)
+
+        #baseRectCont = get_rect(binarized)
+        area_ratio = 0.1
+        rect_area = 0
+        baseRectCont = None
+        cnts = cv2.findContours(binarized, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
+        cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:2]
+
+        if len(cnts) > 0:
+            #Find the rectangle
+            for contour in cnts:
+                #approximate the contours
+                area = cv2.contourArea(contour)
+                x,y,w,h = cv2.boundingRect(contour)
+                rect_area = w * h
+                if rect_area > 0:
+                    area_ratio = (float(area) / rect_area)
+                    if area_ratio >= 0.80:
+                        baseRectCont = contour
+                        break
+
+        #Did we get a rectangle?
+        lineAbsent = True
+        #print("BaseRectCont: " + str(baseRectCont))
+        if baseRectCont is not None and rect_area > 600:
+            self.lineAbsent = False
+
+            #print("AR: " + str(area_ratio) + ", " + str(rect_area) + ", " + str(self.averages[1]))
+
+            #Rectangle area averaging
+            if len(self.averageQueue[1]) > 1:
+                self.averages[1] = sum(self.averageQueue[1]) / len(self.averageQueue[1])
+                a_sd = self.standard_deviation(self.averageQueue[1])
+
+                if not self.isOutlier(rect_area, self.averages[1], a_sd):
+                    self.averageQueue[1].appendleft(rect_area)
+            else:
+                self.averageQueue[1].appendleft(rect_area)
+
+            #Lets calculate the center coordinates
+            self.coords = getContourCenter(baseRectCont)
+
+            #Calculate direction from coordinates
+            self.direction = (width / 2.0) - self.coords[0]
+            #print("Dir: " + str(self.direction) + ", " + str(self.averages[0]) + ", " + str(len(self.averageQueue[0])))
+
+            #Direction averaging
+            if len(self.averageQueue[0]) > 1:
+                self.averages[0] = sum(self.averageQueue[0]) / len(self.averageQueue[0])
+                dir_sd = self.standard_deviation(self.averageQueue[0])
+
+                if not self.isOutlier(self.direction, self.averages[0], dir_sd):
+                    self.averageQueue[0].appendleft(self.direction)
+            else:
+                self.averageQueue[0].appendleft(self.direction)
+
+            minA = cv2.minAreaRect(baseRectCont)
+            self.distance = self.distance_to_camera(self.KNOWN_WIDTH, self.focalLength, minA[1][0])
+            #print("Dist: " + str(self.distance) + ", " + str(self.averages[2]))
+
+            #Distance averaging
+            if len(self.averageQueue[2]) > 1:
+                self.averages[2] = sum(self.averageQueue[2]) / len(self.averageQueue[2])
+                dist_sd = self.standard_deviation(self.averageQueue[2])
+
+                if not self.isOutlier(self.distance, self.averages[2], dist_sd):
+                    self.averageQueue[2].appendleft(self.distance)
+            else:
+                self.averageQueue[2].appendleft(self.distance)
+
+            if self.renderText:
+                cv2.putText(rawResized, "Dir: " + str(self.direction), (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+                cv2.putText(rawResized, "Dist: " + str(self.distance) + " cm", (20, 55), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+
+                #cv2.putText(rawResized, "Angle: " + str(angle), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 200), 2, cv2.LINE_AA)
+                #cv2.line(rawResized, self.directionVector[0], self.directionVector[1], (255,0,0), 2)
+
+                cv2.drawContours(rawResized, [baseRectCont], -1, 255, 3)
+                pass
+
+        #print(str(self.averageQueue[3]))
+        if ( len(self.averageQueue[3]) >= 5 ):
+            self.averageQueue[3].appendleft(self.lineAbsent)
+            s = sum(self.averageQueue[3])
+            if s > (0.2 * len(self.averageQueue[3])):
+                #print("Bad average")
+                self.lineAbsent = True
+        else:
+            self.averageQueue[3].appendleft(self.lineAbsent)
+
+        #Put our values into the dictionary in case we need something
+        self.values["binarized"] = binarized
+        self.values["resized"] = rawResized
+        self.values["edges"] = edges
+        self.values["direction"] = self.direction
+        self.values["angle"] = 90
+        self.values["coords"] = self.coords
+        self.values["lineAbsent"] = self.lineAbsent
+        self.values["distance"] = self.distance
+        self.values["averageQueue"] = self.averageQueue
+        self.values["averages"] = self.averages
+        self.values["rectArea"] = rect_area
+
+        return
+
+    def __str__( self ) :
+        return "BaseFinder"
+
+
+'''
+*	Class: LineFollower
+*	Description: Class for operating on images, and searching for the line.
+*       The RoboCV interface allows access to the data acquired by this class
+*	Author(s):		Austin Dibble
+*	Date Created:	3/1/2018
+'''
+class DistanceCalibrator(VisionFunction):
+    def __init__(self):
+        VisionFunction.__init__(self)
+        self.values["name"] = "DistanceCalibrator"
+        self.values["binarized"] = None
+        self.values["resized"] = None
+        self.values["edges"] = None
+        self.values["focalLength"] = None
+
+        #Our green color HSV values we're looking for
+        self.minOrange = (0, 179, 105) #Perhaps this will find green?
+        self.maxOrange = (20, 255, 225)
+
+        #Render the overlay?
+        self.renderText = True
+
+        #Gives the coordinate of the rectangle, if found
+        self.coords = [0, 0]
+        self.focalLength = 0.0 # in cm
+
+        self.KNOWN_DISTANCE = 15 #in cm
+        self.KNOWN_WIDTH = 4.73 #in cm
+        return
+
+    def operate( self, rawFrame ) :
+        time.sleep(1.0 / 15.0)
+
+        #Resize our video stream for performance
+        #rawResized = imutils.resize(rawFrame, height = 400)
+
+        r = 400.0 / rawFrame.shape[1]
+        dim = (400, int(rawFrame.shape[0] * r))
+
+        # perform the actual resizing of the image and show it
+        rawResized = cv2.resize(rawFrame, dim, interpolation = cv2.INTER_AREA)
+        height, width = rawResized.shape[:2]
+
+        #Convert it to a binary image based on the color thresholds
+        binarized = binarize(rawResized, self.minOrange, self.maxOrange)
+        #detect rectangle contours
+        edges = auto_canny(binarized)
+
+        baseRectCont = get_rect(edges)
+
+        #Did we get a rectangle?
+        lineAbsent = True
+        if baseRectCont is not None:
+            #If we did, calculate center coordinates.
+            self.coords = getContourCenter(baseRectCont)
+            minA = cv2.minAreaRect(baseRectCont)
+            self.focalLength = (minA[1][0] * self.KNOWN_DISTANCE) / self.KNOWN_WIDTH
+            #Calculate direction from coordinates
+
+            if self.renderText:
+                cv2.putText(rawResized, "FL: " + str(self.focalLength), (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+                #cv2.putText(rawResized, "Angle: " + str(angle), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 200), 2, cv2.LINE_AA)
+                #cv2.line(rawResized, self.directionVector[0], self.directionVector[1], (255,0,0), 2)
+
+                cv2.drawContours(rawResized, [baseRectCont], -1, 255, 3)
+                pass
+
+
+        #Put our values into the dictionary in case we need something
+        self.values["binarized"] = binarized
+        self.values["resized"] = rawResized
+        self.values["edges"] = edges
+        self.values["focalLength"] = self.focalLength
+
+        return
+
+    def distance_to_camera(knownWidth, focalLength, perWidth):
+    	# compute and return the distance from the maker to the camera
+    	return (knownWidth * focalLength) / perWidth
+
+    def __str__( self ) :
+        return "DistanceCalibrator"
