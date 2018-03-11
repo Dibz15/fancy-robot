@@ -154,29 +154,51 @@ def get_rect(image):
 
     return None
 
+'''
+****************************************************
+*Function: get_rect_via_ratio
+*Description: recieves a numpy matrix image, and finds the largest quadrilateral
+*   shape in the image, using an area approximation instead of polygon decomp
+*Parameters:
+*   image - image to search in
+*   ratio - ratio of area to find
+*Returns:
+*   None, or the contour of the rectange found
+****************************************************
+'''
 def get_rect_via_ratio(image, ratio):
+    #Find contours in our image
     cnts = cv2.findContours(image.copy(), cv2.RETR_LIST,
         cv2.CHAIN_APPROX_SIMPLE)[-2]
-    cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:1]
+    cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:2]
     center = None
 
     screenCnt = None
 
     if len(cnts) > 0:
         #Find the rectangle
-        for c in cnts:
+        for contour in cnts:
             #approximate the contours
-            peri = cv2.arcLength(c, True)
-            approx = cv2.approxPolyDP(c, 0.02 * peri, True)
-
-            #If our approximated contour has 4 pts, then it's a rectangle
-            if len(approx) == 4:
-                screenCnt = approx
-
-                return screenCnt
+            area = cv2.contourArea(contour)
+            x,y,w,h = cv2.boundingRect(contour)
+            rect_area = w * h
+            if rect_area > 0:
+                area_ratio = (float(area) / rect_area)
+                if area_ratio >= ratio:
+                    return contour
 
     return None
 
+'''
+****************************************************
+*Function: getContourCenter
+*Description: get the center coordinate pair of the given contour
+*Parameters:
+*   contour - contour to find the center of
+*Returns:
+*   array coordinate pair
+****************************************************
+'''
 def getContourCenter(contour):
     M = cv2.moments(contour)
 
@@ -188,6 +210,17 @@ def getContourCenter(contour):
 
     return [ x, y ]
 
+'''
+****************************************************
+*Function: getContourExtent
+*Description: 
+*Parameters:
+*   image - image to search in
+*   ratio - ratio of area to find
+*Returns:
+*   None, or the contour of the rectange found
+****************************************************
+'''
 def getContourExtent(contour):
     area = cv2.contourArea(contour)
     x,y,w,h = cv2.boundingRect(contour)

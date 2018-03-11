@@ -332,34 +332,51 @@ class BaseFinder(VisionFunction):
     def __init__(self):
         VisionFunction.__init__(self)
         self.values["name"] = "BaseFinder"
-        self.values["binarized"] = None
+        self.values["binarizedOrange"] = None
+        self.values["binarizedGreen"] = None
         self.values["resized"] = None
-        self.values["edges"] = None
+        #self.values["edges"] = None
         self.values["direction"] = 0
         self.values["angle"] = 90
         self.values["coords"] = [0, 0]
         self.values["lineAbsent"] = True
         self.values["distance"] = -1.0
         self.values["rectArea"] = 0
+        self.values["numGreen"] = 0
+        self.values["greenCoords"] = [[0, 0], [0, 0]]
+        self.values["greenDirections"] = [0, 0]
+        self.values["greenAreas"] = [0, 0]
+        self.values["greenWidths"] = [0, 0]
 
         self.lineAbsent = True
 
         #Our green color HSV values we're looking for
-        self.minOrange = (0, 179, 85) #Perhaps this will find green?
-        self.maxOrange = (20, 255, 225)
+        self.minOrange = (0, 179, 75) #Perhaps this will find green?
+        self.maxOrange = (20, 255, 230)
 
-        self.direction = 0
+        self.minGreen = (47, 140, 50) #Perhaps this will find green?
+        self.maxGreen = (70, 255, 255)
+
+        self.numGreen = 0
+
+        #Direction for orange rectangle
+        self.orangeDirection = 0
+        self.greenDirections = [0, 0]
+        self.greenAreas = [0, 0]
+        self.greenWidths = [0, 0]
         self.distance = -1.0
+        self.edgeDistance = 0
 
         #Gives the coordinate of the rectangle, if found
         self.coords = [0, 0]
+        self.greenCoords = [[0, 0], [0, 0]]
 
         self.focalLength = 381.0 #in cm
         self.KNOWN_DISTANCE = 15 #in cm
         #self.KNOWN_WIDTH = 4.73 #in cm
         self.KNOWN_WIDTH = 7.3 #in cm
 
-        #Averages: direction average, area average, distance average
+        #Averages: orangeDirection average, area average, distance average
         self.averageQueue = (deque(maxlen = 5), deque(maxlen = 5), deque(maxlen = 5), deque(maxlen = 5))
         self.averages = [0, 0, 0]
 
@@ -387,48 +404,8 @@ class BaseFinder(VisionFunction):
         return (abs(value) > (mean + (2 * standardDeviation)))
 
 
-    def operate( self, rawFrame ) :
-        time.sleep(1.0 / 15.0)
-        self.direction = 0
-
-        #Resize our video stream for performance
-        #rawResized = imutils.resize(rawFrame, height = 400)
-
-        r = 400.0 / rawFrame.shape[1]
-        dim = (400, int(rawFrame.shape[0] * r))
-
-        # perform the actual resizing of the image and show it
-        rawResized = cv2.resize(rawFrame, dim, interpolation = cv2.INTER_AREA)
-        height, width = rawResized.shape[:2]
-
-        #Convert it to a binary image based on the color thresholds
-        binarized = binarize(rawResized, self.minOrange, self.maxOrange)
-        #detect rectangle contours
-        edges = auto_canny(binarized)
-
-        #baseRectCont = get_rect(binarized)
-        area_ratio = 0.1
-        rect_area = 0
-        baseRectCont = None
-        cnts = cv2.findContours(binarized, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
-        cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:2]
-
-        if len(cnts) > 0:
-            #Find the rectangle
-            for contour in cnts:
-                #approximate the contours
-                area = cv2.contourArea(contour)
-                x,y,w,h = cv2.boundingRect(contour)
-                rect_area = w * h
-                if rect_area > 0:
-                    area_ratio = (float(area) / rect_area)
-                    if area_ratio >= 0.80:
-                        baseRectCont = contour
-                        break
-
-        #Did we get a rectangle?
-        lineAbsent = True
-        #print("BaseRectCont: " + str(baseRectCont))
+    def detectRectangle(self, rect_area, baseRectCont, width):
+        self.lineAbsent = True
         if baseRectCont is not None and rect_area > 600:
             self.lineAbsent = False
 
@@ -447,19 +424,19 @@ class BaseFinder(VisionFunction):
             #Lets calculate the center coordinates
             self.coords = getContourCenter(baseRectCont)
 
-            #Calculate direction from coordinates
-            self.direction = (width / 2.0) - self.coords[0]
-            #print("Dir: " + str(self.direction) + ", " + str(self.averages[0]) + ", " + str(len(self.averageQueue[0])))
+            #Calculate orangeDirection from coordinates
+            self.orangeDirection = (width / 2.0) - self.coords[0]
+            #print("Dir: " + str(self.orangeDirection) + ", " + str(self.averages[0]) + ", " + str(len(self.averageQueue[0])))
 
             #Direction averaging
             if len(self.averageQueue[0]) > 1:
                 self.averages[0] = sum(self.averageQueue[0]) / len(self.averageQueue[0])
                 dir_sd = self.standard_deviation(self.averageQueue[0])
 
-                if not self.isOutlier(self.direction, self.averages[0], dir_sd):
-                    self.averageQueue[0].appendleft(self.direction)
+                if not self.isOutlier(self.orangeDirection, self.averages[0], dir_sd):
+                    self.averageQueue[0].appendleft(self.orangeDirection)
             else:
-                self.averageQueue[0].appendleft(self.direction)
+                self.averageQueue[0].appendleft(self.orangeDirection)
 
             minA = cv2.minAreaRect(baseRectCont)
             self.distance = self.distance_to_camera(self.KNOWN_WIDTH, self.focalLength, minA[1][0])
@@ -475,17 +452,6 @@ class BaseFinder(VisionFunction):
             else:
                 self.averageQueue[2].appendleft(self.distance)
 
-            if self.renderText:
-                cv2.putText(rawResized, "Dir: " + str(self.direction), (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
-                cv2.putText(rawResized, "Dist: " + str(self.distance) + " cm", (20, 55), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
-
-                #cv2.putText(rawResized, "Angle: " + str(angle), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 200), 2, cv2.LINE_AA)
-                #cv2.line(rawResized, self.directionVector[0], self.directionVector[1], (255,0,0), 2)
-
-                cv2.drawContours(rawResized, [baseRectCont], -1, 255, 3)
-                pass
-
-        #print(str(self.averageQueue[3]))
         if ( len(self.averageQueue[3]) >= 5 ):
             self.averageQueue[3].appendleft(self.lineAbsent)
             s = sum(self.averageQueue[3])
@@ -495,11 +461,124 @@ class BaseFinder(VisionFunction):
         else:
             self.averageQueue[3].appendleft(self.lineAbsent)
 
+    def detectGreen(self, binarizedGreen, width, rawResized):
+        (_, cnts, _) = cv2.findContours(binarizedGreen.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:2]
+
+        '''
+        for (i, c) in enumerate(cnts):
+            cv2.drawContours(rawResized, [c], -1, 255, 3)
+        '''
+
+        greenConts = [None, None]
+        self.greenAreas = [0, 0]
+        self.numGreen = 0
+        if len(cnts) > 0:
+            #Find the rectangle
+            for contour in cnts:
+                #approximate the contours
+                area = cv2.contourArea(contour)
+                x,y,w,h = cv2.boundingRect(contour)
+                rect_area = w * h
+                if rect_area > 0:
+                    area_ratio = (float(area) / rect_area)
+                    #print("Cont: " + str(num) + ", Ratio: " + str(area_ratio))
+                    if area_ratio >= 0.60 and w >= 5 and rect_area > 50:
+                        greenConts[self.numGreen] = contour
+                        self.greenCoords[self.numGreen] = getContourCenter(contour)
+                        #Calculate orangeDirection from coordinates
+                        self.greenDirections[self.numGreen] = (width / 2.0) - self.greenCoords[self.numGreen][0]
+                        self.greenAreas[self.numGreen] = rect_area
+                        self.greenWidths[self.numGreen] = w
+                        self.numGreen += 1
+
+        return greenConts
+
+    def operate( self, rawFrame ) :
+        time.sleep(1.0 / 15.0)
+        self.orangeDirection = 0
+
+        #Resize our video stream for performance
+        #rawResized = imutils.resize(rawFrame, height = 400)
+
+        r = 400.0 / rawFrame.shape[1]
+        dim = (400, int(rawFrame.shape[0] * r))
+
+        # perform the actual resizing of the image and show it
+        rawResized = cv2.resize(rawFrame, dim, interpolation = cv2.INTER_AREA)
+        height, width = rawResized.shape[:2]
+
+        #Convert it to a binary image based on the color thresholds
+        binarizedOrange = binarize(rawResized, self.minOrange, self.maxOrange)
+        binarizedGreen = binarize(rawResized, self.minGreen, self.maxGreen)
+        #detect rectangle contours
+
+        area_ratio = 0.1
+        rect_area = 0
+        rectWidth = 0
+        baseRectCont = None
+        cnts = cv2.findContours(binarizedOrange, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[-2]
+        cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:2]
+
+        if len(cnts) > 0:
+            #Find the rectangle
+            for contour in cnts:
+                #approximate the contours
+                area = cv2.contourArea(contour)
+                x,y,w,h = cv2.boundingRect(contour)
+
+                rect_area = w * h
+                if rect_area > 0:
+                    area_ratio = (float(area) / rect_area)
+                    if area_ratio >= 0.80:
+                        rectWidth = w
+                        baseRectCont = contour
+                        break
+
+        #Did we get a rectangle?
+        self.detectRectangle(rect_area, baseRectCont, width)
+
+        greenConts = self.detectGreen(binarizedGreen, width, rawResized)
+
+        if self.renderText:
+            if not self.lineAbsent:
+                cv2.putText(rawResized, "ODir: " + str(self.orangeDirection), (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+                cv2.putText(rawResized, "ODist: " + str(self.distance) + " cm", (20, 55), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+                cv2.putText(rawResized, "OArea: " + str(rect_area) + " cm", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+                if self.numGreen == 1:
+                    if (self.greenDirections[0] > self.orangeDirection):
+                        greenEdge = self.greenDirections[0] - (self.greenWidths[0] / 2)
+                        orangeEdge = self.orangeDirection + (rectWidth / 2)
+                        self.edgeDistance = greenEdge - orangeEdge
+                    else:
+                        greenEdge = self.greenDirections[0] + (self.greenWidths[0] / 2)
+                        orangeEdge = self.orangeDirection - (rectWidth / 2)
+                        self.edgeDistance = orangeEdge - greenEdge
+                    cv2.putText(rawResized, "ED: " + str(self.edgeDistance) + "px", (20, 180), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+
+                cv2.drawContours(rawResized, [baseRectCont], -1, 255, 3)
+                #cv2.putText(rawResized, "Angle: " + str(angle), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 200), 2, cv2.LINE_AA)
+                #cv2.line(rawResized, self.orangeDirectionVector[0], self.orangeDirectionVector[1], (255,0,0), 2)
+
+            if self.numGreen >= 1:
+                cv2.putText(rawResized, "GDir: " + str(self.greenDirections), (20, 105), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+                cv2.putText(rawResized, "GNum" + str(self.numGreen) + "", (20, 130), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+                cv2.putText(rawResized, "GW: " + str(self.greenWidths), (20, 155), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
+
+                if self.numGreen == 1:
+                    cv2.drawContours(rawResized, [greenConts[0]], -1, 255, 3)
+                    pass
+                else:
+                    cv2.drawContours(rawResized, greenConts, -1, 255, 3)
+                    pass
+
+
         #Put our values into the dictionary in case we need something
-        self.values["binarized"] = binarized
+        self.values["binarizedOrange"] = binarizedOrange
+        self.values["binarizedGreen"] = binarizedGreen
         self.values["resized"] = rawResized
-        self.values["edges"] = edges
-        self.values["direction"] = self.direction
+        #self.values["edges"] = edges
+        self.values["orangeDirection"] = self.orangeDirection
         self.values["angle"] = 90
         self.values["coords"] = self.coords
         self.values["lineAbsent"] = self.lineAbsent
@@ -507,6 +586,14 @@ class BaseFinder(VisionFunction):
         self.values["averageQueue"] = self.averageQueue
         self.values["averages"] = self.averages
         self.values["rectArea"] = rect_area
+
+        self.values["numGreen"] = self.numGreen
+        self.values["greenCoords"] = self.greenCoords
+        self.values["greenDirections"] = self.greenDirections
+        self.values["greenAreas"] = self.greenAreas
+        self.values["greenWidths"] = self.greenWidths
+        self.values["edgeDistance"] = self.edgeDistance
+
 
         return
 

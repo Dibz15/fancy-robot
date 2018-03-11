@@ -47,7 +47,9 @@ class SensorsController:
 
         self.distanceCallbackDistance = 30
         self.voltageCallbackVoltage = 3.30 #3.50
-        self.chargingCallbackVoltage = 3.50
+        self.chargingCallbackVoltage = 3.5
+
+        self.numUpdates = 0
 
 
     #Function to start up the sensors controller.
@@ -135,10 +137,19 @@ class SensorsController:
                             self.distanceCallback()
 
                     #Check for a critical voltage value
-                    #TODO temp for testing find home state
-                    self.dataAverage[2] = 3.00
+
                     #print("DAvg: " + str(self.dataAverage[2]))
-                    if self.dataAverage[2] < self.voltageCallbackVoltage and self.dataQueue[0][2] > 0:
+                    self.numUpdates += 1
+                    compareVoltage = 0
+                    if self.numUpdates > 20:
+                        compareVoltage = self.dataAverage[2]
+                    else:
+                        compareVoltage = self.dataQueue[0][2]
+
+                    #Voltage to compare with TEMP TODO for testing
+                    compareVoltage = 3.00
+                    #print("voltage is:" + str(self.dataAverage[2]))
+                    if compareVoltage < self.voltageCallbackVoltage and self.dataQueue[0][2] > 0:
                         if self.voltageCallback is not None:
                             self.voltageCallback()
 

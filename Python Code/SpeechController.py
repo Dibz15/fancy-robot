@@ -54,15 +54,16 @@ class SpeechController:
         print("Saying \"" + speechString + "\"")
         #If voicetype is 0, use the speech engine
         #TODO fix this
-        '''
+
         if self.voiceType == 0:
             self.engine.say(speechString)
             self.engine.runAndWait()
         #Else, let's build a couple of system calls
         else:
             os.system("pico2wave -w voice.wav \"" + speechString + "\" 2>/dev/null")
+            time.sleep(0.5)
             os.system("aplay voice.wav 2>/dev/null")
-        '''
+
 
     #Change the output. Options are HDMI, audio jack, or ?
     def changeOutput(self, newOutput):

@@ -29,7 +29,7 @@ if not pi.connected:
 speech = SpeechController()
 speech.start()
 
-speech.speak("Initializing Modules")
+#speech.speak("Initializing Modules")
 
 sensors = SensorsController(pi)
 motors = MotorController(pi, decoder = sensors.getDecoder())
@@ -57,7 +57,7 @@ while rCV.getCurrentVisionFunctionValue("modified") is None:
 '''
 
 #implement while update loop here
-for i in range(100):
+for i in range(100000):
     time.sleep(1.0 / 20.0)
     ai.update()
 
