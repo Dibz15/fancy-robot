@@ -108,6 +108,15 @@ class VisionFunction:
         self.renderText = False
         return
 
+    '''
+    ****************************************************
+    *Function: operate
+    *Description: performs some vision function operation
+    *Params: rawFrame ; frame to operate on
+    *Returns:
+    *   Nothing
+    ****************************************************
+    '''
     def operate( self, rawFrame ):
         return
 
@@ -385,10 +394,28 @@ class BaseFinder(VisionFunction):
 
         return
 
+    '''
+    ****************************************************
+    *Function: distance_to_camera
+    *Description: Gives the distance of the object from the camera
+    *Params: knownWidth, focalLength, perWidth
+    *Returns:
+    *   Distance in cm
+    ****************************************************
+    '''
     def distance_to_camera(self, knownWidth, focalLength, perWidth):
     	# compute and return the distance from the maker to the camera
     	return (knownWidth * focalLength) / perWidth
 
+    '''
+    ****************************************************
+    *Function: standard_deviation
+    *Description: Find the standard deviation of the dataset
+    *Params: list - list of numbers to find the std of
+    *Returns:
+    *    the standard deviation
+    ****************************************************
+    '''
     def standard_deviation(self, lst):
         num_items = len(lst)
         mean = sum(lst) / num_items
@@ -400,10 +427,31 @@ class BaseFinder(VisionFunction):
         sd = math.sqrt(variance)
         return sd
 
+    '''
+    ****************************************************
+    *Function: isOutlier
+    *Description: Finds whether a number is an outlier of a dataset
+    *Params: value - value to check
+    *        mean - average value of dataset
+    *        standardDeviation - the standard deviation of the dataset
+    *Returns:
+    *    bool, whether or not the value is an outlier
+    ****************************************************
+    '''
     def isOutlier(self, value, mean, standardDeviation):
         return (abs(value) > (mean + (2 * standardDeviation)))
 
-
+    '''
+    ****************************************************
+    *Function: detectRectangle
+    *Description: Finds the orange rectangle data
+    *Params: rect_area - area of rectangle found
+            baseRectCont - rectangle contour
+            width - width of the screen
+    *Returns:
+    *    nothing
+    ****************************************************
+    '''
     def detectRectangle(self, rect_area, baseRectCont, width):
         self.lineAbsent = True
         if baseRectCont is not None and rect_area > 600:
@@ -414,8 +462,10 @@ class BaseFinder(VisionFunction):
             #Rectangle area averaging
             if len(self.averageQueue[1]) > 1:
                 self.averages[1] = sum(self.averageQueue[1]) / len(self.averageQueue[1])
+                #Get standard dev
                 a_sd = self.standard_deviation(self.averageQueue[1])
 
+                #if not outlier, add it to data set
                 if not self.isOutlier(rect_area, self.averages[1], a_sd):
                     self.averageQueue[1].appendleft(rect_area)
             else:
@@ -426,18 +476,20 @@ class BaseFinder(VisionFunction):
 
             #Calculate orangeDirection from coordinates
             self.orangeDirection = (width / 2.0) - self.coords[0]
-            #print("Dir: " + str(self.orangeDirection) + ", " + str(self.averages[0]) + ", " + str(len(self.averageQueue[0])))
 
             #Direction averaging
             if len(self.averageQueue[0]) > 1:
                 self.averages[0] = sum(self.averageQueue[0]) / len(self.averageQueue[0])
+                #Calc standard dev
                 dir_sd = self.standard_deviation(self.averageQueue[0])
 
+                #If data is not outlier, add to dataset
                 if not self.isOutlier(self.orangeDirection, self.averages[0], dir_sd):
                     self.averageQueue[0].appendleft(self.orangeDirection)
             else:
                 self.averageQueue[0].appendleft(self.orangeDirection)
 
+            #Get rectangle to calc distance
             minA = cv2.minAreaRect(baseRectCont)
             self.distance = self.distance_to_camera(self.KNOWN_WIDTH, self.focalLength, minA[1][0])
             #print("Dist: " + str(self.distance) + ", " + str(self.averages[2]))
@@ -445,30 +497,40 @@ class BaseFinder(VisionFunction):
             #Distance averaging
             if len(self.averageQueue[2]) > 1:
                 self.averages[2] = sum(self.averageQueue[2]) / len(self.averageQueue[2])
+                #Calculate standard dev
                 dist_sd = self.standard_deviation(self.averageQueue[2])
 
+                #if data is not an outlier, save it
                 if not self.isOutlier(self.distance, self.averages[2], dist_sd):
                     self.averageQueue[2].appendleft(self.distance)
             else:
                 self.averageQueue[2].appendleft(self.distance)
 
+        #If we have 5 "lineAbsent" values in our queue
         if ( len(self.averageQueue[3]) >= 5 ):
             self.averageQueue[3].appendleft(self.lineAbsent)
             s = sum(self.averageQueue[3])
             if s > (0.2 * len(self.averageQueue[3])):
                 #print("Bad average")
+                #Line absent is true only if 4 of 5 of our queue is true
                 self.lineAbsent = True
         else:
             self.averageQueue[3].appendleft(self.lineAbsent)
 
+    '''
+    ****************************************************
+    *Function: detectGreen
+    *Description: Finds the green!
+    *Params: binarizedGreen - pixel array of green binary contours
+            width - width of the screen
+            rawResized - raw resized pixel array
+    *Returns:
+    *    bool, whether or not the value is an outlier
+    ****************************************************
+    '''
     def detectGreen(self, binarizedGreen, width, rawResized):
         (_, cnts, _) = cv2.findContours(binarizedGreen.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:2]
-
-        '''
-        for (i, c) in enumerate(cnts):
-            cv2.drawContours(rawResized, [c], -1, 255, 3)
-        '''
 
         greenConts = [None, None]
         self.greenAreas = [0, 0]
@@ -482,7 +544,7 @@ class BaseFinder(VisionFunction):
                 rect_area = w * h
                 if rect_area > 0:
                     area_ratio = (float(area) / rect_area)
-                    #print("Cont: " + str(num) + ", Ratio: " + str(area_ratio))
+                    #Get the ratio of the contour area to the bounding rectangle
                     if area_ratio >= 0.60 and w >= 5 and rect_area > 50:
                         greenConts[self.numGreen] = contour
                         self.greenCoords[self.numGreen] = getContourCenter(contour)
@@ -493,6 +555,7 @@ class BaseFinder(VisionFunction):
                         self.numGreen += 1
 
         return greenConts
+
 
     def operate( self, rawFrame ) :
         time.sleep(1.0 / 15.0)
@@ -540,25 +603,34 @@ class BaseFinder(VisionFunction):
 
         greenConts = self.detectGreen(binarizedGreen, width, rawResized)
 
+        #If we see only 1 green, and also the rectangle
+        if self.numGreen == 1 and not self.lineAbsent:
+            #If the green is to the left of the rectangle
+            if (self.greenDirections[0] > self.orangeDirection):
+                #Calculate the distance between the green's right edge, and the
+                #orange's left edge
+                greenEdge = self.greenDirections[0] - (self.greenWidths[0] / 2)
+                orangeEdge = self.orangeDirection + (rectWidth / 2)
+                self.edgeDistance = greenEdge - orangeEdge
+            else:
+                #Else if the green is to the right of the orange
+                #Calculate the distance between the green's left edge and the
+                #orange's right edge
+                greenEdge = self.greenDirections[0] + (self.greenWidths[0] / 2)
+                orangeEdge = self.orangeDirection - (rectWidth / 2)
+                self.edgeDistance = orangeEdge - greenEdge
+
         if self.renderText:
+            #If we want to render data to the screen
             if not self.lineAbsent:
                 cv2.putText(rawResized, "ODir: " + str(self.orangeDirection), (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
                 cv2.putText(rawResized, "ODist: " + str(self.distance) + " cm", (20, 55), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
                 cv2.putText(rawResized, "OArea: " + str(rect_area) + " cm", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
                 if self.numGreen == 1:
-                    if (self.greenDirections[0] > self.orangeDirection):
-                        greenEdge = self.greenDirections[0] - (self.greenWidths[0] / 2)
-                        orangeEdge = self.orangeDirection + (rectWidth / 2)
-                        self.edgeDistance = greenEdge - orangeEdge
-                    else:
-                        greenEdge = self.greenDirections[0] + (self.greenWidths[0] / 2)
-                        orangeEdge = self.orangeDirection - (rectWidth / 2)
-                        self.edgeDistance = orangeEdge - greenEdge
                     cv2.putText(rawResized, "ED: " + str(self.edgeDistance) + "px", (20, 180), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
 
+                #Draw the orange rectangle
                 cv2.drawContours(rawResized, [baseRectCont], -1, 255, 3)
-                #cv2.putText(rawResized, "Angle: " + str(angle), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 200), 2, cv2.LINE_AA)
-                #cv2.line(rawResized, self.orangeDirectionVector[0], self.orangeDirectionVector[1], (255,0,0), 2)
 
             if self.numGreen >= 1:
                 cv2.putText(rawResized, "GDir: " + str(self.greenDirections), (20, 105), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
@@ -566,13 +638,13 @@ class BaseFinder(VisionFunction):
                 cv2.putText(rawResized, "GW: " + str(self.greenWidths), (20, 155), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
 
                 if self.numGreen == 1:
+                    #Draw just the one contour
                     cv2.drawContours(rawResized, [greenConts[0]], -1, 255, 3)
                     pass
                 else:
+                    #Draw both contours
                     cv2.drawContours(rawResized, greenConts, -1, 255, 3)
                     pass
-
-
         #Put our values into the dictionary in case we need something
         self.values["binarizedOrange"] = binarizedOrange
         self.values["binarizedGreen"] = binarizedGreen
@@ -593,7 +665,6 @@ class BaseFinder(VisionFunction):
         self.values["greenAreas"] = self.greenAreas
         self.values["greenWidths"] = self.greenWidths
         self.values["edgeDistance"] = self.edgeDistance
-
 
         return
 

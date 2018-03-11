@@ -1,3 +1,14 @@
+'''
+*	File: main.py
+*	Description:  This file holds the Main thread which will pass the motor, speech, sensors, CV,
+and PanTilt controllers to an instantiated aiController class. It loops through the update function
+of the aiController class, which in turn calls the update function of the current aiState which
+is on top of the stack.
+*
+*	Author(s):		Michael Lee
+*	Date Created:	1/28/17
+'''
+
 import pigpio
 import time
 import Constants
@@ -15,7 +26,6 @@ from OpenCV.RoboCV import *
 #Main control for the robot here...
 #needs to keep track of CV, IR, ultrasonic, etc...
 
-
 #RoboCVRef = imp.load_source('RoboCV', './OpenCV stuff/RoboCV.py')
 rCV = RoboCV()
 
@@ -25,12 +35,9 @@ if not pi.connected:
     print("Pigpio not initialized.")
     exit()
 
-
 speech = SpeechController()
 speech.start()
-
 #speech.speak("Initializing Modules")
-
 sensors = SensorsController(pi)
 motors = MotorController(pi, decoder = sensors.getDecoder())
 panTilt = PanTiltControl(Constants.panPin, Constants.tiltPin, pi)
@@ -38,32 +45,24 @@ ai = aiController(pi, speech, motors, panTilt, rCV, sensors)
 print("finished initializing ai controller")
 #speech.speak("Starting Modules")
 
+#starting controller operations
 sensors.start()
 motors.start()
 panTilt.start()
 rCV.start()
 time.sleep(.5)
-
 ai.start()
-
 
 rCV.setCurrentVisionFunction("LineFollower")
 
-'''
-print("Waiting for line image in main")
-while rCV.getCurrentVisionFunctionValue("modified") is None:
-    time.sleep(0.1)
-    continue
-'''
-
-#implement while update loop here
-for i in range(100000):
+#loops aiController's update function, which calls the update function of the current aiState robot is in
+for i in range(100):
     time.sleep(1.0 / 20.0)
     ai.update()
 
 
 #speech.speak("Shutting down all modules")
-
+#shutting down all modules
 motors.stop()
 sensors.stop()
 panTilt.stop()

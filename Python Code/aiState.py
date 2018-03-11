@@ -585,6 +585,7 @@ class findHomeState(aiState):
     def wiggleIn(self, motors, rCV, sensors):
         #Next, wiggle forward
         wheelToUse = 1
+        self.collisionCBenable = True         #used within aiState's findHomeState's alignCenter function
         while not self.detectCharge(sensors):
             #First, center with the orange
             orangeDirection = rCV.getCurrentVisionFunctionValue("orangeDirection")
@@ -601,7 +602,7 @@ class findHomeState(aiState):
                 orangeDirection = rCV.getCurrentVisionFunctionValue("orangeDirection")
 
             rectArea = rCV.getCurrentVisionFunctionValue("rectArea")
-            if abs(orangeDirection) < 30 or rectArea > 4500:
+            if abs(orangeDirection) < 50 or rectArea > 4500:
                 motors.forwardFunction(distance = 30)
                 while not motors.currentOperation.complete:
                     time.sleep(0.1)
@@ -610,11 +611,52 @@ class findHomeState(aiState):
                         self.aiC.popState()                                 #pop avoidanceState off stack
                         self.pushState(chargeState(self.aiC))
 
-
             print("Wiggle " + str(wheelToUse))
             angle = 15 if wheelToUse == motors.RIGHT else -15
+            motors.setStallState([False, False])            #reset the stall state of both wheels to false
             motors.turnAngleFunction(angle = angle, wheel = wheelToUse)
-            motors.waitOnAction()
+            while not motors.currentOperation.complete:
+                time.sleep(0.1)
+                stallState = motors.getStallState()         #polls the stall state using motor controller for both wheels
+
+                if (stallState[0] == True and wheelToUse == motors.LEFT) or (stallState[1] == True and wheelToUse == motors.RIGHT):
+                    motors.halt()
+                    if wheelToUse == motors.LEFT:
+                        motors.turnAngleFunction(angle = -angle, wheel = motors.LEFT)
+                        motors.waitOnAction()
+                    elif wheelToUse == motors.RIGHT:
+                        motors.turnAngleFunction(angle = angle, wheel = motors.RIGHT)
+                        motors.waitOnAction()
+
+                    motors.setStallState([False, False])
+                    time.sleep(0.5)
+                    stallDetectedOnForward = True
+                    while stallDetectedOnForward:
+                        print ("stall detected during turn")
+                        print("Halting")
+                        motors.halt()                           #cancels turn function by halting motors
+                        print("Moving backwards 4 cm")
+                        motors.reverseFunction(distance = 4)
+                        motors.waitOnAction()
+
+                        motors.setStallState([False, False])
+                        time.sleep(0.5)
+
+                        print("Moving forward 3 cm")
+                        motors.forwardFunction(distance = 3)
+                        while not motors.currentOperation.complete:
+                            time.sleep(0.1)
+                            stallState = motors.getStallState()
+                            stallDetectedOnForward = False
+                            if self.detectCharge(sensors):
+                                motors.halt()
+                                self.aiC.popState()                                 #pop avoidanceState off stack
+                                self.pushState(chargeState(self.aiC))
+                            elif (stallState[0] == True) or (stallState[1] == True):
+                                stallDetectedOnForward = True
+                                print("Stall detected on forward")
+                                break
+
             time.sleep(0.1)
             wheelToUse ^= 1
 
@@ -912,14 +954,17 @@ class findHomeState(aiState):
                         #move forward until GW is >= 40
                         print("Moving forward until gw >= 40")
                         greenWidths = rCV.getCurrentVisionFunctionValue("greenWidths")
-                        while (greenWidths[0] < 20):
-                            dist = 1
-                            motors.forwardFunction(distance = dist, speed = 10)
+                        numGreen = rCV.getCurrentVisionFunctionValue("numGreen")
+                        while (greenWidths[0] < 20) and numGreen == 1:
+                            print("Width: " + str(greenWidths[0]))
+                            dist = 2
+                            motors.forwardFunction(distance = dist)
                             motors.waitOnAction()
                             if self.detectCharge(sensors):
                                 break
                             time.sleep(1.5)
                             greenWidths = rCV.getCurrentVisionFunctionValue("greenWidths")
+                            numGreen = rCV.getCurrentVisionFunctionValue("numGreen")
 
                         if self.detectCharge(sensors):
                             break
@@ -974,14 +1019,17 @@ class findHomeState(aiState):
                         #move forward until GW is >= 40
                         print("Move forward until gw >= 40")
                         greenWidths = rCV.getCurrentVisionFunctionValue("greenWidths")
-                        while (greenWidths[0] < 20):
-                            dist = 1
-                            motors.forwardFunction(distance = dist, speed = 10)
+                        numGreen = rCV.getCurrentVisionFunctionValue("numGreen")
+                        while (greenWidths[0] < 20) and numGreen == 1:
+                            print("Width: " + str(greenWidths[0]))
+                            dist = 2
+                            motors.forwardFunction(distance = dist)
                             motors.waitOnAction()
                             if self.detectCharge(sensors):
                                 break
                             time.sleep(1.5)
                             greenWidths = rCV.getCurrentVisionFunctionValue("greenWidths")
+                            numGreen = rCV.getCurrentVisionFunctionValue("numGreen")
 
                         if self.detectCharge(sensors):
                             break
@@ -1024,14 +1072,17 @@ class findHomeState(aiState):
                         #move forward until GW >= 40
                         print("Move forward until gw >= 40")
                         greenWidths = rCV.getCurrentVisionFunctionValue("greenWidths")
-                        while (greenWidths[0] < 20):
-                            dist = 1
-                            motors.forwardFunction(distance = dist, speed = 10)
+                        numGreen = rCV.getCurrentVisionFunctionValue("numGreen")
+                        while (greenWidths[0] < 20) and numGreen == 1:
+                            print("Width: " + str(greenWidths[0]))
+                            dist = 2
+                            motors.forwardFunction(distance = dist)
                             motors.waitOnAction()
                             if self.detectCharge(sensors):
                                 break
                             time.sleep(1.5)
                             greenWidths = rCV.getCurrentVisionFunctionValue("greenWidths")
+                            numGreen = rCV.getCurrentVisionFunctionValue("numGreen")
 
                         if self.detectCharge(sensors):
                             break
@@ -1142,9 +1193,10 @@ class findHomeState(aiState):
                         motors.turnAngleFunction(angle = 0.85 * turnAngle)  #turn left scaled turnAngleFunction
                         motors.waitOnAction()
 
-            if  self.detectCharge(sensors):
-                #charge
-                pass
+            if self.detectCharge(sensors):
+                motors.halt()
+                self.aiC.popState()                                 #pop avoidanceState off stack
+                self.pushState(chargeState(self.aiC))
 
 
     def smallToLarge(self, num1, num2):                     #takes in 2 numbers, orders from abs of least to greatest
@@ -1217,10 +1269,10 @@ class findHomeState(aiState):
             time.sleep(0.03)                                #iterage through each element of stack
             if self.angleStack[j] == 200:                    #check for not valid value ()'200')
                 count200 += 1                                #count occurences of 200
-                self.angleStack[j] == 0                      #replace invalid value with zero for averaging purposes
+                self.angleStack[j] = 0                      #replace invalid value with zero for averaging purposes
             elif self.angleStack[j] == 300:                  #check for 3+ IR sensors returning values ('300')
                 count300 += 1
-                self.angleStack[j] == 0
+                self.angleStack[j] = 0
             else:                                            #if not '200' or '300'
                 if self.angleStack[j] == a:                  #count occurences of first element
                     countA += 1
@@ -1308,4 +1360,228 @@ class findHomeState(aiState):
                 print("ir Angle = 200")
                 print ("invalidCount: " + str(invalidCount))
                 print("invalid IR value")              #invalid angle value received
-                if inv
+                if invalidCount < 3:
+                    print("turning to search for IR signal")                             #if invalid, try turning 90 degrees twice before moving lovation
+                    motors.turnAngleFunction(angle = 70)             #turn 90 degrees left and rescan
+                    motors.waitOnAction()
+                    invalidCount += 1                                #increment invalid angle value Counter
+                else:
+                    print("moving to new location in search of IR signal")
+                    motors.forwardFunction(distance = 25)            #if invalid angle value detected thru 270 degrees
+                    motors.waitOnAction()                            #move forward to  change location
+                    motors.turnAngleFunction(angle = 30)             #turn 45 degrees
+                    motors.waitOnAction()
+
+            print("end of while loop")
+
+        print("outside of while loop")
+        print("IR average value: " + str(self.irAngle))
+
+        if self.irBeamLocked == True and not self.dockFlag:                               #outside of while loop, double check that IR beam is locked
+            print("irBeam is locked")
+            self.cvInRange = False
+            while self.irAngle == 90 and self.cvInRange == False:   #keeps moving forward as long as aligned with transmitter,
+                motors.forwardFunction(distance = 30)               # and CV is not in range to assist yet
+                motors.waitOnAction()
+                print("moving forward")
+                motors.halt()
+                time.sleep(0.2)
+                self.getAvgIRAngle(sensors)                         #gets average or majority value of polled IR angles
+                self.cvScan()                                      #cvScan function
+                print("executing cvScan")
+
+        if self.cvInRange == True and not self.dockFlag:                                  #within close enough proximity to transmitter to use CV to align
+            while not self.alignedWithCenter:
+                self.alignCenter()                                      #call alignCenter function, to align with center of base station
+
+        if self.alignedWithCenter == True and not self.dockFlag:                          #if aligned with center of base station, begin docking routine
+            self.dock(motors, sensors)
+
+        if self.detectCharge(sensors):
+            motors.halt()
+            self.aiC.popState()                                 #pop avoidanceState off stack
+            self.pushState(chargeState(self.aiC))
+
+                                     # set self.irBeamLocked back to 'False' and self.cvInRange back to 'False' before ending function
+'''
+*	Class: chargeState
+*	Description: chargeState is a child class of aiState. Utilized by the aiController class, it outlines the routine
+    which directs the robot to poll the battery voltage of its battery pack, and after detecting that its battery is
+    sufficiently charged, leaves the base station.
+*	Author:      Michael Lee
+*	Date Created:	2/22/18
+'''
+class chargeState(aiState):         #robot's charging state
+
+
+    def __init__(self, aiC):        #constructor for chargeState
+        aiState.__init__(self, aiC)
+
+
+    def update(self):
+        print ("in chargeState's update")
+
+        sensors = self.getController(self.aiC.sensorString)  #variable for easier access to sensors controller
+
+        while not chargeComplete:   #loops until chargeComplete is True
+            time.sleep( 0.2 )
+            battVoltage = sensors.getBatteryVoltage()     #polls battery voltage from sensors thread
+            if battVoltage >= 4.00:                       #charge complete at battery voltage = 4 volts
+                chargeComplete = True                     #set flag to end while loop
+
+        motors = self.getController(self.aiC.motorsString)
+        motors.reverseFunction(distance = 40)             #reverse out of base station
+        motors.waitOnAction()                             #wait until reverse function has completed
+        motors.turnAngleFunction(angle = -153)            #reorient in opposite direction
+        motors.waitOnAction()                             #wait for turn
+
+        self.aiC.voltageCBtriggered = False
+        self.aiC.collisionCBenable = True                 #reenable avoidanceState
+        self.aiC.clearStack()
+        self.pushState(lineFollowState(self.aiC))
+                                   #pop chargeState off stack
+
+        return
+
+'''
+*	Class: AvoidanceState
+*	Description: lineFollowState is a child class of aiState. After receiving a critical value alert from the ultrasonic sensor,
+    sensorsController calls the collisionCB function within aiController class which will push AvoidanceState onto the stack.
+    AvoidanceState directs the robot to reorient itself away from the obstacle that the ultrasonic sensor has detected.
+*	Author:       Michael Lee and Austin Dibble
+*	Date Created:	2/21/18
+'''
+#TODO fix this freeze again
+class avoidanceState(aiState):
+
+    def __init__(self, aiC):                            #constructor for avoidanceState
+        aiState.__init__(self, aiC)
+        self.turnObstruct = False                       #default value for variable representing if a turn attempt was obstructed
+
+    def detectTurnStall(self, motors, pivotWheel):      #function to determine if there was turn obstruction
+        print("inside of detectTurnStall")
+        self.turnObstruct = False
+        motors.setStallState([False, False])            #reset the stall state of both wheels to false
+        time.sleep(0.25)
+
+        while not motors.currentOperation.complete:     #loops while turnAngleFunction command has not completed
+            time.sleep(0.2)
+            stallState = motors.getStallState()         #polls the stall state using motor controller for both wheels
+            print("Stallstate: " + str(stallState))
+            print("Pivotwheel: " + str(pivotWheel))
+
+            if (stallState[0] == True and pivotWheel == motors.RIGHT) or (stallState[1] == True and pivotWheel == motors.LEFT):
+                if not motors.currentOperation.complete:    #checks if a non-pivot wheel stalled during turn
+                    print ("stall detected during turn")
+                    self.turnObstruct = True                #sets variable to true, signifying stall has occured
+                    motors.halt()                           #cancels turn function by halting motors
+                    break
+
+        #motors.forwardFunction(distance = 25)               #move forward 25 cm
+        #motors.waitOnAction()
+
+    def oneEighty(self, motors):                            #reverse and turn around 180 degrees
+        motors.reverseFunction(distance = 30)               #possible corner, reverse
+        motors.waitOnAction()                               #wait untill reverse function has completed
+        motors.turnAngleFunction(angle = -153)              #reorient in opposite direction
+        motors.waitOnAction()
+
+    def update(self):                                       #sets routine for obstacle avoidance
+        print ("in avoidanceState's update")
+        self.aiC.collisionCBtriggered = True
+        motors = self.getController(self.aiC.motorsString)  #set variable for easier access to MotorController
+        print("turning left 70 degrees, pivot on right wheel")
+        motors.turnAngleFunction(angle = 60, wheel = motors.LEFT) #turn command for a 70 degree left turn, pivoting on right wheel
+
+        self.detectTurnStall(motors, motors.RIGHT)          #calls function to determine if stall occurs during turn
+
+
+        if self.turnObstruct == True:                       #if stall has occurred during turn
+            print("stall detected during first turn")
+            time.sleep(0.1)
+            self.turnObstruct = False                       #reset variable to default
+            motors.turnAngleFunction(angle = -38, wheel = motors.RIGHT)  #turn 120 degrees in the other direction, pivot on left
+            self.detectTurnStall(motors, motors.LEFT)       #detect if stall occurs during this second turn
+
+            if self.turnObstruct == True:
+                print("stall detected during second turn")
+                self.oneEighty(motors)
+            else:
+                self.turnObstruct = False
+                motors.forwardFunction(distance = 90)
+                self.detectTurnStall(motors, motors.LEFT)
+                if self.turnObstruct == True:
+                    motors.turnAngleFunction(angle = -115, wheel = motors.RIGHT)
+                    motors.waitOnAction()
+                else:
+                    self.turnObstruct = False
+                    motors.turnAngleFunction(angle = 38, wheel = motors.LEFT)
+                    motors.waitOnAction()
+                    motors.forwardFunction(distance = 60)
+                    self.detectTurnStall(motors, motors.LEFT)
+
+                    if self.turnObstruct == True:
+                        motors.turnAngleFunction(angle = -38, wheel = motors.LEFT)
+                        motors.waitOnAction()
+                        motors.forwardFunction(distance = 60)
+                        motors.waitOnAction()
+                        motors.turnAngleFunction(angle = -38, wheel = motors.RIGHT)
+                        motors.waitOnAction()
+                        motors.forwardFunction(distance = 60)
+                        motors.waitOnAction()
+                        motors.turnAngleFunction(angle = -38, wheel = motors.RIGHT)
+                        motors.waitOnAction()
+                    else:
+                        self.turnObstruct = False
+                        motors.turnAngleFunction(angle = -38, wheel = motors.LEFT)
+                        motors.waitOnAction()
+
+            self.turnObstruct = True
+
+        #if stall did not occur on first left turn , don't forget to set self.turnObstruct to TRUE for top if statement
+        elif self.turnObstruct == False:                    #if stall did not occur during first turn
+            motors.forwardFunction(distance = 90)           #move forward 2 ft to try and clear obstacle
+            self.detectTurnStall(motors, motors.LEFT)
+            if self.turnObstruct == True:
+                motors.turnAngleFunction(angle = 38, wheel = motors.LEFT)
+                motors.waitOnAction()
+            else:
+                self.turnObstruct = False
+                motors.turnAngleFunction(angle = -60, wheel = motors.RIGHT)
+                self.detectTurnStall(motors, motors.LEFT)
+                if self.turnObstruct == True:
+                    self.oneEighty(motors)
+                else:
+                    self.turnObstruct = False
+                    motors.forwardFunction(distance = 60)           #move forward 2 ft to try and clear obstacle
+                    self.detectTurnStall(motors, motors.LEFT)
+                    if self.turnObstruct == True:
+                        motors.turnAngleFunction(angle = 60, wheel = motors.LEFT)
+                        motors.waitOnAction()
+                    else:
+                        self.turnObstruct = False
+                        motors.turnAngleFunction(angle = -38, wheel = motors.RIGHT)
+                        motors.waitOnAction()
+                        motors.forwardFunction(distance = 60)
+                        self.detectTurnStall(motors, motors.LEFT)
+
+                        if self.turnObstruct == True:
+                            motors.turnAngleFunction(angle = 38, wheel = motors.LEFT)
+                            motors.waitOnAction()
+                            motors.forwardFunction(distance = 60)
+                            motors.waitOnAction()
+                            motors.turnAngleFunction(angle = -38, wheel = motors.RIGHT)
+                            motors.waitOnAction()
+                            motors.forwardFunction(distance = 60)
+                            motors.waitOnAction()
+                            motors.turnAngleFunction(angle = 38, wheel = motors.LEFT)
+                            motors.waitOnAction()
+                        else:
+                            motors.turnAngleFunction(angle = 38, wheel = motors.LEFT)
+                            motors.waitOnAction()
+
+        self.aiC.collisionCBtriggered = False               #clear collisionCBtriggered flag before popping
+        self.turnObstruct = False
+        self.aiC.popState()                                 #pop avoidanceState off stack
+
+        return

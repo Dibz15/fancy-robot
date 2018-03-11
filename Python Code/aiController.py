@@ -19,14 +19,11 @@ from threading import Thread
 import imp
 import collections
 
-
-#the forum for aiStates to be ran and transitioned
-#manages current and next states by use of stack
 '''
 *	Class: aiController
 *	Description:	aiController is a class which provides a layer of abstraction for the main code block, and
     manages the different aiStates of the robot within a stack. It also handles any callBack functions that are high priority
-    and need the ability to interrupt a current mode
+    and need the ability to interrupt a current mode. Current and next states managed in a stack.
 *	Author(s):	   Michael Lee
 *	Date Created:	1/28/18
 '''
@@ -92,11 +89,32 @@ class aiController:
         else:
             print("invalid controller name")
 
+    '''
+    ****************************************************
+    *Function: start(self)
+    *Description: Starts aiController operation
+    *
+    *Parameters:
+    *   self
+    *Returns:
+    *
+    ****************************************************
+    '''
     def start (self):                           #starting aiController
         print("Starting aiController")
         self.stopped = False
 
-
+    '''
+    ****************************************************
+    *Function: stop(self)
+    *Description: Stops aiController operations
+    *
+    *Parameters:
+    *   self
+    *Returns:
+    *
+    ****************************************************
+    '''
     def stop (self):                            #stopping aiController
         print("Stopping aiController")
         self.stopped = True

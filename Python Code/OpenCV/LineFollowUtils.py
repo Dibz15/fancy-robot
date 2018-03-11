@@ -53,6 +53,13 @@ def repackRawImages(images):
     return img
 
 
+'''
+*	Class: BaseFinder
+*	Description: Class for operating on images, and searching for our base marker
+*       The RoboCV interface allows access to the data acquired by this class
+*	Author(s):		Austin Dibble
+*	Date Created:	3/1/18
+'''
 class LineImageSlice:
     def __init__(self):
         self.image = None
