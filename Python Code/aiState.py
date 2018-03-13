@@ -800,17 +800,22 @@ class findHomeState(aiState):
             print("Wiggle " + str(wheelToUse))    #robot is within the arms of the base station, start wiggling in
             angle = 15 if wheelToUse == motors.RIGHT else -15 #15 degree turns in alternating directions
             motors.setStallState([False, False])            #reset the stall state of both wheels to false
+            time.sleep(0.5)
             motors.turnAngleFunction(angle = angle, wheel = wheelToUse)
             while not motors.currentOperation.complete and not self.aiC.stopped:
                 time.sleep(0.1)
                 stallState = motors.getStallState()         #polls the stall state using motor controller for both wheels
-
+                print("stallState is:" + str(stallState))
                 if (stallState[0] == True and wheelToUse == motors.LEFT) or (stallState[1] == True and wheelToUse == motors.RIGHT):
                     motors.halt()                           #stall was detected during a wiggle, stop motors
+                    motors.reverseFunction(distance = 2)
+                    motors.waitOnAction()
                     if wheelToUse == motors.LEFT:           #if stall detected on left turn, turn right, away from obstacle
+                        print("turning right")
                         motors.turnAngleFunction(angle = -angle, wheel = motors.LEFT)
                         motors.waitOnAction()
                     elif wheelToUse == motors.RIGHT:        #if stall detected on right turn, turn left, away from obstacle
+                        print("turning left")
                         motors.turnAngleFunction(angle = angle, wheel = motors.RIGHT)
                         motors.waitOnAction()
 
@@ -1635,7 +1640,7 @@ class findHomeState(aiState):
                 self.irBeamLocked = True
 
             elif self.irAngle < 90:                                  #transmitter is offcenter to the right
-                self.correctionAngle = ((self.irAngle * 1.15) - 90)        #calculate angle needed to line up with ir transmitter
+                self.correctionAngle = ((self.irAngle - 90) * 0.80)        #calculate angle needed to line up with ir transmitter
                 print("Angle < 90")
                 print ("Correction angle is: " + str(self.correctionAngle))                                                     #extra 20 degrees added to compensate for turnAngleFunction
                                                                     #may need recalibration
@@ -1643,7 +1648,8 @@ class findHomeState(aiState):
                 motors.waitOnAction()                                    #wait for turn
 
             elif self.irAngle > 90 and self.irAngle != 200 and self.irAngle != 300:                                  #transmitter is off center to the left
-                self.correctionAngle = ((self.irAngle*0.85) - 90)        #calculate angle needed to line up with ir transmittermotors.turnAngleFunction(angle = self.correctionAngle)   #turn to line up with transmitter
+                #self.correctionAngle = ((self.irAngle*0.80) - 90)        #calculate angle needed to line up with ir transmittermotors.turnAngleFunction(angle = self.correctionAngle)   #turn to line up with transmitter
+                self.correctionAngle = ((self.irAngle - 90) * 0.80)
                 print("angle > 90")
                 print ("Correction angle is: " + str(self.correctionAngle))
                 motors.turnAngleFunction(angle = self.correctionAngle)   #turn to line up with transmitter
@@ -1677,7 +1683,7 @@ class findHomeState(aiState):
                 print("ir Angle = 200")
                 print ("invalidCount: " + str(invalidCount))
                 print("invalid IR value")              #invalid angle value received
-                if invalidCount < 5:
+                if invalidCount < 6:
                     print("turning to search for IR signal")                             #if invalid, try turning 90 degrees twice before moving lovation
                     motors.turnAngleFunction(angle = 70)             #turn 90 degrees left and rescan
                     motors.waitOnAction()
@@ -1699,12 +1705,10 @@ class findHomeState(aiState):
             speech.speak("eye. are. beam. centered.")
             self.cvInRange = False
             while self.irAngle == 90 and self.cvInRange == False and not self.aiC.stopped:   #keeps moving forward as long as aligned with transmitter,
-                if self.detectCharge(sensors):
-                    motors.halt()
-                    self.aiC.popState()                                 #pop avoidanceState off stack
-                    self.pushState(chargeState(self.aiC))
                 motors.forwardFunction(distance = 30)               # and CV is not in range to assist yet
-                motors.waitOnAction()
+                if self.detectCharge(sensors):
+                    self.aiC.popstate()
+                    self.pushState(chargeState(self.aiC))
                 print("moving forward")
                 motors.halt()
                 time.sleep(0.2)
@@ -1720,9 +1724,8 @@ class findHomeState(aiState):
         if self.alignedWithCenter == True and not self.dockFlag:                          #if aligned with center of base station, begin docking routine
             self.dock(motors, sensors)
 
-        if self.detectCharge(sensors):
-            motors.halt()
-            self.aiC.popState()                                 #pop avoidanceState off stack
+        if sensors.isCharging():
+            self.aiC.popState()                                 #pop findHome off stack
             self.pushState(chargeState(self.aiC))
 
                                      # set self.irBeamLocked back to 'False' and self.cvInRange back to 'False' before ending function

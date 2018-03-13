@@ -59,11 +59,9 @@ ai.start()
 rCV.setCurrentVisionFunction("LineFollower")
 
 #loops aiController's update function, which calls the update function of the current aiState robot is in
-count = 0
-while not ai.stopped and count < 50:
+while not ai.stopped:
     time.sleep(1.0 / 20.0)
     ai.update()
-    count += 1
 
 
 #speech.speak("Shutting down all modules")
