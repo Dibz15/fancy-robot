@@ -5,7 +5,6 @@
 *	Author(s):		Austin Dibble
 *	Date Created:	12/27/17
 '''
-
 from PiCameraStream import *
 from cvlib import *
 from LineFollowUtils import *
@@ -673,8 +672,9 @@ class BaseFinder(VisionFunction):
 
 
 '''
-*	Class: LineFollower
-*	Description: Class for operating on images, and searching for the line.
+*	Class: DistanceCalibrator
+*	Description: Class for calibrating the distance measurement (finding the lens)
+* focal length
 *       The RoboCV interface allows access to the data acquired by this class
 *	Author(s):		Austin Dibble
 *	Date Created:	3/1/2018
@@ -729,13 +729,13 @@ class DistanceCalibrator(VisionFunction):
             #If we did, calculate center coordinates.
             self.coords = getContourCenter(baseRectCont)
             minA = cv2.minAreaRect(baseRectCont)
+            #Calculate focal length
             self.focalLength = (minA[1][0] * self.KNOWN_DISTANCE) / self.KNOWN_WIDTH
             #Calculate direction from coordinates
 
             if self.renderText:
+                #Display info 
                 cv2.putText(rawResized, "FL: " + str(self.focalLength), (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,200), 2, cv2.LINE_AA)
-                #cv2.putText(rawResized, "Angle: " + str(angle), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 200), 2, cv2.LINE_AA)
-                #cv2.line(rawResized, self.directionVector[0], self.directionVector[1], (255,0,0), 2)
 
                 cv2.drawContours(rawResized, [baseRectCont], -1, 255, 3)
                 pass

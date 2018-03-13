@@ -10,7 +10,15 @@ import numpy as np
 import cv2
 from collections import deque
 
-
+'''
+****************************************************
+*Function: centerOfContour
+*Description: grabs the coordinate pair of the center of the given contour
+*Parameters: self
+*Returns: the center coordinate pair
+*
+****************************************************
+'''
 def centerOfContour(moments):
     if moments["m00"] == 0:
         return 0
@@ -20,6 +28,18 @@ def centerOfContour(moments):
 
     return x, y
 
+'''
+****************************************************
+*Function: sliceImage
+*Description: slices the given image into pieces, and puts the information about
+    *each piece into an array of LineImageSlices'
+*Parameters: image - image to slice
+*   imageParts - array to hold slices
+*   numSlices - the number of pieces to slice into
+*Returns: nothing
+*
+****************************************************
+'''
 def sliceImage(image, imageParts, numSlices, renderText = True, rawImage = None):
     height, width = image.shape[:2]
     sliceHeight = int(height / numSlices);
@@ -32,6 +52,16 @@ def sliceImage(image, imageParts, numSlices, renderText = True, rawImage = None)
         imageParts[i].process(renderText, crop_raw)
         imageParts[i].absoluteY = imageParts[i].middleY + part
 
+'''
+****************************************************
+*Function: repackImages
+*Description: takes array of image slices and packs it back into a whole image
+*Parameters: image - image to slice
+*   images - array of image slices
+*Returns:
+*   assembled image
+****************************************************
+'''
 def repackImages(images):
     img = images[0].image
     for i in range(len(images)):
@@ -42,6 +72,16 @@ def repackImages(images):
 
     return img
 
+'''
+****************************************************
+*Function: repackRawImages
+*Description: takes array of image slices and packs it back into a whole image
+*Parameters: image - image to slice
+*   images - array of image slices
+*Returns:
+*   assembled image
+****************************************************
+'''
 def repackRawImages(images):
     img = images[0].rawImage
     for i in range(len(images)):
@@ -54,11 +94,10 @@ def repackRawImages(images):
 
 
 '''
-*	Class: BaseFinder
-*	Description: Class for operating on images, and searching for our base marker
-*       The RoboCV interface allows access to the data acquired by this class
+*	Class: LineImageSlice
+*	Description: Data class for information on image slices.
 *	Author(s):		Austin Dibble
-*	Date Created:	3/1/18
+*	Date Created:	12/28/18=7
 '''
 class LineImageSlice:
     def __init__(self):
@@ -72,6 +111,15 @@ class LineImageSlice:
         self.dir = 0
         self.isLine = False
 
+    '''
+    ****************************************************
+    *Function: process
+    *Description: process the information in this image slice
+    *Parameters:
+    *Returns:
+    *   none
+    ****************************************************
+    '''
     def process(self, renderText = True, rawImage = None):
         #imgray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY) #Convert to Gray Scale
         #ret, thresh = cv2.threshold(imgray,100,255,cv2.THRESH_BINARY_INV) #Get Threshold
@@ -126,9 +174,28 @@ class LineImageSlice:
         else:
             self.isLine = False
 
+    '''
+    ****************************************************
+    *Function: isLinePresent
+    *Description: process the information in this image slice
+    *Parameters:
+    *Returns:
+    *   getter for self.isLine
+    ****************************************************
+    '''
     def isLinePresent(self):
         return self.isLine
 
+
+    '''
+    ****************************************************
+    *Function: getContourCenter
+    *Description:get center of given contour
+    *Parameters:
+    *Returns:
+    *   coordinate pair of center
+    ****************************************************
+    '''
     def getContourCenter(self, contour):
         M = cv2.moments(contour)
 
@@ -140,6 +207,15 @@ class LineImageSlice:
 
         return [x,y]
 
+    '''
+    ****************************************************
+    *Function: getContourExtent
+    *Description: get the ratio of area for this contour
+    *Parameters:
+    *Returns:
+    *   ratio
+    ****************************************************
+    '''
     def getContourExtent(self, contour):
         area = cv2.contourArea(contour)
         x,y,w,h = cv2.boundingRect(contour)
@@ -153,6 +229,15 @@ class LineImageSlice:
         else:
             return False
 
+    '''
+    ****************************************************
+    *Function: correctMainContour
+    *Description: corrects contour approximation
+    *Parameters:
+    *Returns:
+    *   nothing
+    ****************************************************
+    '''
     def correctMainContour(self, prev_cx):
         if abs(prev_cx - self.contourCenterX) > 5:
             for i in range(len(self.contours)):

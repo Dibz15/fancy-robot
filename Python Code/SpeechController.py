@@ -60,9 +60,9 @@ class SpeechController:
             self.engine.runAndWait()
         #Else, let's build a couple of system calls
         else:
-            os.system("pico2wave -w voice.wav \"" + speechString + "\" 2>/dev/null")
+            os.system("pico2wave -w voice.wav \"" + speechString + "\" 1>/dev/null 2>/dev/null")
             time.sleep(0.5)
-            os.system("aplay voice.wav 2>/dev/null")
+            os.system("omxplayer -o local voice.wav 1>/dev/null 2>/dev/null")
 
 
     #Change the output. Options are HDMI, audio jack, or ?

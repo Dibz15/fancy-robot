@@ -135,11 +135,9 @@ class aiController:
         if not self.collisionCBtriggered and self.collisionCBenable: #if not already in avoidance state or prior to docking
             self.collisionCBtriggered = True                         #set flag, so avoidance can't be triggered within
             self.motors.halt()                   #imminent collision, stop motors
-            self.pushState(avoidanceState(self)) #push the avoidanceState onto the stack
             print ("in aiC collisionCB")
-            #self.speech.speak("imminent collision detected")
-            #self.speech.speak("halting motors.")
-            #self.speech.speak("Avoidance state")
+            self.pushState(avoidanceState(self)) #push the avoidanceState onto the stack
+
 
     '''
     ****************************************************
@@ -160,13 +158,11 @@ class aiController:
             self.motors.halt()
             print("Voltage low")
             #print("Stack top: " + str(self.peekState()))
+            self.speech.speak("Battery, low.")
             self.aiStack.clear()                #clear stack of all States
             time.sleep(0.1)
             self.pushState(findHomeState(self))  #push findHomeState onto the stack
-            #self.speech.speak("critical battery voltage detected.")
-            #self.speech.speak("halting motors.")
-                              #halt motors
-            #self.speech.speak("switching to find home state.")
+
             print("Going to find home state")
 
     '''
@@ -240,11 +236,15 @@ class aiController:
     '''
     #calls update of the current state
     def update(self):
-        if (len(self.aiStack) != 0):            #check if stack is empty
-            stateToUpdate = self.aiStack[0]     #get state on top of stack
+        if not self.stopped:
+            if (len(self.aiStack) != 0):            #check if stack is empty
+                stateToUpdate = self.aiStack[0]     #get state on top of stack
 
-            if stateToUpdate is not None:
-                print("Updating state: " + str(stateToUpdate))
-                stateToUpdate.update()          #call update function of state
+                if stateToUpdate is not None:
+                    print("Updating state: " + str(stateToUpdate))
+                    stateToUpdate.update()          #call update function of state
+        else:
+            return True
 
+        return False
         #print("Updating aiController")

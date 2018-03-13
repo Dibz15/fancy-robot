@@ -46,8 +46,8 @@ class SensorsController:
         self.voltageCallback = None
 
         self.distanceCallbackDistance = 30
-        self.voltageCallbackVoltage = 3.30 #3.50
-        self.chargingCallbackVoltage = 3.5
+        self.voltageCallbackVoltage = 3.60 #3.50
+        self.chargingCallbackVoltage = 3.50
 
         self.numUpdates = 0
 
@@ -137,8 +137,6 @@ class SensorsController:
                             self.distanceCallback()
 
                     #Check for a critical voltage value
-
-                    #print("DAvg: " + str(self.dataAverage[2]))
                     self.numUpdates += 1
                     compareVoltage = 0
                     if self.numUpdates > 20:
@@ -147,7 +145,7 @@ class SensorsController:
                         compareVoltage = self.dataQueue[0][2]
 
                     #Voltage to compare with TEMP TODO for testing
-                    compareVoltage = 3.00
+                    compareVoltage = 3.5
                     #print("voltage is:" + str(self.dataAverage[2]))
                     if compareVoltage < self.voltageCallbackVoltage and self.dataQueue[0][2] > 0:
                         if self.voltageCallback is not None:

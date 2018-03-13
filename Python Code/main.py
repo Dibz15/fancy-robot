@@ -22,6 +22,7 @@ from PanTiltControl import *
 from threading import Thread
 import imp
 from OpenCV.RoboCV import *
+from BreakHandler import *
 
 #Main control for the robot here...
 #needs to keep track of CV, IR, ultrasonic, etc...
@@ -45,6 +46,8 @@ ai = aiController(pi, speech, motors, panTilt, rCV, sensors)
 print("finished initializing ai controller")
 #speech.speak("Starting Modules")
 
+breakHandler = BreakHandler(motors, sensors, panTilt, rCV, ai, speech, pi)
+
 #starting controller operations
 sensors.start()
 motors.start()
@@ -56,17 +59,19 @@ ai.start()
 rCV.setCurrentVisionFunction("LineFollower")
 
 #loops aiController's update function, which calls the update function of the current aiState robot is in
-for i in range(100):
+count = 0
+while not ai.stopped and count < 50:
     time.sleep(1.0 / 20.0)
     ai.update()
+    count += 1
 
 
 #speech.speak("Shutting down all modules")
 #shutting down all modules
+ai.stop()
 motors.stop()
 sensors.stop()
 panTilt.stop()
-rCV.stop()
-ai.stop()
 speech.stop()
+rCV.stop()
 pi.stop()

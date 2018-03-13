@@ -272,7 +272,7 @@ class MotorController:
         self.currentOperation = TurnAngleFunction(self.decoder, self, angle, wheel, targetSpeed)
 
     def waitOnAction(self):
-        while not self.currentOperation.complete:
+        while not self.currentOperation.complete and not self.stopped:
             time.sleep(0.2)
 
         return
@@ -397,7 +397,12 @@ class MotorController:
     def _msToS(self, ms):
         return ms / 1000.0
 
-
+'''
+*	Class: MotorFunction
+*	Description:	Abstract class for specific functions acted out by motors
+*	Author(s):		Austin Dibble
+*	Date Created:	2/20/18
+'''
 class MotorFunction:
     def __init__(self, decoder, motors, targetSpeed = -1):
         self.decoder = decoder
@@ -416,7 +421,12 @@ class MotorFunction:
     def operate(self):
         pass
 
-
+'''
+*	Class: LinearFunction(MotorFunction)
+*	Description: Class for linear motor movement
+*	Author(s):		Austin Dibble
+*	Date Created:	2/20/18
+'''
 class LinearFunction(MotorFunction):
     def __init__(self, decoder, motors, distance = -1, targetSpeed = -1, direction = 0):
         MotorFunction.__init__(self, decoder, motors, targetSpeed)
@@ -547,8 +557,7 @@ class LinearFunction(MotorFunction):
         #The wheels should be going a similar speed, due to our other PID loop, so it's safe to
         #use the average as the input into our speed PID.
         aV = (lV + rV) * 0.5
-        #print("AV: " + str(aV))
-        #print("Target speed: " + str(self.targetSpeed))
+
 
         #Update our speed PID loop, given the real speed.
         #It will compare its setpoint (targetSpeed) to the given speed, and calculate the new output power delta for us
@@ -572,6 +581,13 @@ class LinearFunction(MotorFunction):
         elif self.direction == self.REVERSE:
             self.motors.reverse(lTargetPwr, rTargetPwr)
 
+
+'''
+*	Class: TurnAngleFunction(MotorFunction)
+*	Description: Class for rotational motor movement
+*	Author(s):		Austin Dibble
+*	Date Created:	2/20/18
+'''
 class TurnAngleFunction(MotorFunction):
 
     def __init__(self, decoder, motors, angle, wheel = None, targetSpeed = -1):
@@ -683,7 +699,12 @@ class TurnAngleFunction(MotorFunction):
 
 
 
-
+'''
+*	Class: MotorDistancePID
+*	Description: A specific PID implementation for distance control
+*	Author(s):		Austin Dibble
+*	Date Created:	2/20/18
+'''
 class MotorDistancePID:
     def __init__(self, decoder, PID, targetPwr, maxPwr = 100):
         self.dPID = PID
@@ -714,24 +735,29 @@ class MotorDistancePID:
         #rCurrentPwr = self.motors.dutyToPower(self.motors.getCurrentDutyCycle(self.motors.rightForward))
         #lCurrentPwr = self.motors.dutyToPower(self.motors.getCurrentDutyCycle(self.motors.leftForward))
 
+        #If right is ahead
         if (self.Lticks < self.Rticks):
+            #If increasing left power wouldn't work
             if (self.lTargetPwr + deltaPwr >= self.maxPwr):
                 self.rTargetPwr = self.targetPwr - deltaPwr
                 self.lTargetPwr = self.lTargetPwr
 
+            #If it would work
             elif (self.lTargetPwr + deltaPwr < self.maxPwr):
                 self.rTargetPwr = self.targetPwr
                 self.lTargetPwr = self.targetPwr + deltaPwr
 
+        #If left is ahead
         elif (self.Lticks > self.Rticks):
+            #If increasing right power wouldn't work
             if (self.rTargetPwr + deltaPwr >= self.maxPwr):
                 self.lTargetPwr = self.targetPwr - deltaPwr
                 self.rTargetPwr = self.rTargetPwr
-
+            #if it would work
             elif (self.rTargetPwr + deltaPwr < self.maxPwr):
                 self.lTargetPwr = self.lTargetPwr
                 self.rTargetPwr = self.rTargetPwr + deltaPwr
-
+        #Otherwise, don't change anything
         elif (self.Lticks == self.Rticks):
             self.lTargetPwr = self.lTargetPwr
             self.rTargetPwr = self.rTargetPwr
